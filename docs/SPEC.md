@@ -178,6 +178,7 @@ When a ticket enters `resolved`, `TicketService` stores `state(ticket, resolved_
 | POST | `/tickets/{number}/articles` | role:agent | link KB article |
 | GET | `/kb`, `/kb/{id}` | auth | browse/search (`?q=`), read |
 | GET/POST/PUT | `/kb/create`, `/kb`, `/kb/{id}/edit`, `/kb/{id}` | role:agent | author |
+| GET/POST | `/kb/categories` | role:agent(+csrf) | list KB categories with article counts, add a category |
 | resource | `/assets` | role:agent (index/show), role:admin (write) | asset register |
 | GET | `/reports?from=YYYY-MM-DD&to=YYYY-MM-DD` | role:agent | dashboard |
 | GET | `/reports/export.csv?from=&to=` | role:agent | CSV |

@@ -5,6 +5,7 @@ use Helpdesk\Sla\SlaCalculator;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Events\Dispatcher;
 use InvalidArgumentException;
+use KbArticle;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Ticket;
 use TicketComment;
@@ -21,6 +22,7 @@ use User;
  *   ticket.commented  (Ticket $ticket, TicketComment $comment, User $actor)
  *   ticket.status     (Ticket $ticket, string $from, string $to, User $actor)
  *   ticket.priority   (Ticket $ticket, string $from, string $to, User $actor)
+ *   ticket.article_linked (Ticket $ticket, KbArticle $article, User $actor)
  */
 class TicketService {
 
@@ -204,6 +206,41 @@ class TicketService {
 		});
 
 		$this->events->fire('ticket.priority', array($ticket, $from, $priority, $actor));
+
+		return $ticket;
+	}
+
+	/**
+	 * Link a published knowledge-base article to the ticket. Linking an
+	 * article that is already linked changes nothing.
+	 *
+	 * @throws AccessDeniedHttpException  the actor is not an agent
+	 * @throws InvalidArgumentException   the article is a draft
+	 */
+	public function linkArticle(Ticket $ticket, KbArticle $article, User $actor)
+	{
+		if ( ! $actor->isAgent())
+		{
+			throw new AccessDeniedHttpException('Only agents can link articles to tickets.');
+		}
+
+		if ( ! $article->is_published)
+		{
+			throw new InvalidArgumentException('Only published articles can be linked to a ticket.');
+		}
+
+		$linked = $this->db->transaction(function() use ($ticket, $article, $actor)
+		{
+			if ($ticket->articles()->where('kb_articles.id', $article->id)->exists()) return false;
+
+			$ticket->articles()->attach($article->id);
+
+			$this->record($ticket, $actor, 'article_linked', null, $article->title);
+
+			return true;
+		});
+
+		if ($linked) $this->events->fire('ticket.article_linked', array($ticket, $article, $actor));
 
 		return $ticket;
 	}

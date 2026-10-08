@@ -26,6 +26,7 @@
 					<li class="{{ Request::is('/') ? 'active' : '' }}"><a href="{{ URL::to('/') }}">Dashboard</a></li>
 					<li class="{{ Request::is('tickets') || (Request::is('tickets/*') && ! Request::is('tickets/create')) ? 'active' : '' }}"><a href="{{ URL::to('tickets') }}">Tickets</a></li>
 					<li class="{{ Request::is('tickets/create') ? 'active' : '' }}"><a href="{{ URL::to('tickets/create') }}">New ticket</a></li>
+					<li class="{{ Request::is('kb') || Request::is('kb/*') ? 'active' : '' }}"><a href="{{ URL::to('kb') }}">Knowledge base</a></li>
 				</ul>
 				<ul class="nav navbar-nav navbar-right">
 					<li><p class="navbar-text">{{{ Auth::user()->name }}} <span class="label label-default">{{{ Auth::user()->role }}}</span></p></li>

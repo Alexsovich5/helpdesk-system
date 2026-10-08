@@ -113,7 +113,12 @@ class TicketController extends BaseController {
 		$ticket = $this->findOrFail($number);
 		$user = Auth::user();
 
-		$ticket->load('category', 'requester', 'assignee', 'events.user', 'comments.author');
+		$ticket->load('category', 'requester', 'assignee', 'events.user', 'comments.author', 'articles');
+
+		$linked = $ticket->articles->filter(function($article) use ($user)
+		{
+			return $article->isVisibleTo($user);
+		});
 
 		return View::make('tickets.show', array(
 			'ticket'     => $ticket,
@@ -122,7 +127,25 @@ class TicketController extends BaseController {
 			'agents'     => $user->isAgent() ? $this->agentOptions() : array(),
 			'targets'    => StatusMachine::targets($ticket->status),
 			'priorities' => Ticket::$priorities,
+			'articles'   => $linked,
+			'articleOptions' => $user->isAgent() ? $this->articleOptions($ticket) : array(),
 		));
+	}
+
+	public function linkArticle($number)
+	{
+		$ticket = $this->findOrFail($number);
+		$article = KbArticle::find(Input::get('kb_article_id'));
+
+		if (is_null($article) || ! $article->is_published)
+		{
+			return Redirect::to('tickets/'.$ticket->number)
+				->withErrors(array('kb_article_id' => 'Choose a published knowledge-base article.'));
+		}
+
+		$this->tickets->linkArticle($ticket, $article, Auth::user());
+
+		return Redirect::to('tickets/'.$ticket->number)->with('status', "Linked article \"{$article->title}\".");
 	}
 
 	public function assign($number)
@@ -196,6 +219,19 @@ class TicketController extends BaseController {
 	protected function agentOptions()
 	{
 		return User::whereIn('role', array('agent', 'admin'))->orderBy('name')->lists('name', 'id');
+	}
+
+	/**
+	 * @return array article id => title for published articles not yet linked to the ticket
+	 */
+	protected function articleOptions(Ticket $ticket)
+	{
+		$query = KbArticle::published()->orderBy('title');
+
+		$linked = $ticket->articles->modelKeys();
+		if (count($linked)) $query->whereNotIn('id', $linked);
+
+		return $query->lists('title', 'id');
 	}
 
 	/**

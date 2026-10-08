@@ -36,6 +36,10 @@
 			</div>
 		</div>
 
+		@if ( ! $user->isAgent())
+		@include('tickets._articles')
+		@endif
+
 		@if ( ! $user->isAgent() && $ticket->status === 'resolved' && $ticket->isOwnedBy($user))
 		<div class="well well-sm">
 			<p>This ticket has been marked resolved.</p>
@@ -69,6 +73,8 @@
 						assigned it to {{{ $event->to_value }}}
 					@elseif ($event->type === 'status')
 						changed status from {{{ $event->from_value }}} to {{{ $event->to_value }}}
+					@elseif ($event->type === 'article_linked')
+						article linked: {{{ $event->to_value }}}
 					@else
 						{{{ str_replace('_', ' ', $event->type) }}}@if ($event->to_value): {{{ $event->from_value ? $event->from_value.' to ' : '' }}}{{{ $event->to_value }}}@endif
 					@endif
@@ -123,6 +129,8 @@
 			</div>
 		</div>
 		@endif
+
+		@include('tickets._articles')
 
 		@if (count($targets))
 		<div class="panel panel-default">

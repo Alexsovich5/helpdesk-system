@@ -39,6 +39,11 @@ class Ticket extends Eloquent {
 		return $this->hasMany('TicketComment')->orderBy('id');
 	}
 
+	public function articles()
+	{
+		return $this->belongsToMany('KbArticle', 'ticket_kb_article')->orderBy('title');
+	}
+
 	public function events()
 	{
 		return $this->hasMany('TicketEvent')->orderBy('id');
