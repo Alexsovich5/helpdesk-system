@@ -6,11 +6,11 @@
 				<th>Subject</th>
 				<th>Status</th>
 				<th>Priority</th>
-				<th>Requester</th>
+				<th class="hidden-xs">Requester</th>
 				<th>Assignee</th>
 				<th>SLA</th>
-				<th>Resolution due</th>
-				<th>Created</th>
+				<th class="hidden-xs">Resolution due</th>
+				<th class="hidden-xs">Created</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -20,11 +20,11 @@
 				<td><a href="{{ URL::to('tickets/'.$ticket->number) }}">{{{ $ticket->subject }}}</a></td>
 				<td>@include('tickets._status_label', array('status' => $ticket->status))</td>
 				<td>{{{ $ticket->priority }}}</td>
-				<td>{{{ $ticket->requester ? $ticket->requester->name : '' }}}</td>
+				<td class="hidden-xs">{{{ $ticket->requester ? $ticket->requester->name : '' }}}</td>
 				<td>{{{ $ticket->assignee ? $ticket->assignee->name : '-' }}}</td>
 				<td>@include('tickets._sla_badge', array('state' => $ticket->sla_state))</td>
-				<td>{{{ $ticket->resolution_due_at ? $ticket->resolution_due_at->format('Y-m-d H:i') : '-' }}}</td>
-				<td>{{{ $ticket->created_at->format('Y-m-d H:i') }}}</td>
+				<td class="hidden-xs">{{{ $ticket->resolution_due_at ? $ticket->resolution_due_at->format('Y-m-d H:i') : '-' }}}</td>
+				<td class="hidden-xs">{{{ $ticket->created_at->format('Y-m-d H:i') }}}</td>
 			</tr>
 			@endforeach
 		</tbody>

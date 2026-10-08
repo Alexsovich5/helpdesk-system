@@ -44,8 +44,8 @@
 				{{ Form::label('description', 'Description', array('class' => 'control-label')) }}
 				{{ Form::textarea('description', null, array('class' => 'form-control', 'rows' => 8)) }}
 			</div>
-			<button type="submit" class="btn btn-primary">Create ticket</button>
-			<a href="{{ URL::to('tickets') }}" class="btn btn-link">Cancel</a>
+			<button type="submit" class="btn btn-primary btn-block-xs">Create ticket</button>
+			<a href="{{ URL::to('tickets') }}" class="btn btn-link btn-block-xs">Cancel</a>
 		{{ Form::close() }}
 	</div>
 </div>

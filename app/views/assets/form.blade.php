@@ -48,8 +48,8 @@
 					{{ Form::select('assigned_user_id', $users, null, array('class' => 'form-control')) }}
 				</div>
 			</div>
-			<button type="submit" class="btn btn-primary">Save</button>
-			<a href="{{ URL::to($asset->exists ? 'assets/'.$asset->id : 'assets') }}" class="btn btn-link">Cancel</a>
+			<button type="submit" class="btn btn-primary btn-block-xs">Save</button>
+			<a href="{{ URL::to($asset->exists ? 'assets/'.$asset->id : 'assets') }}" class="btn btn-link btn-block-xs">Cancel</a>
 		{{ Form::close() }}
 	</div>
 </div>

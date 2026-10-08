@@ -44,3 +44,49 @@ body {
 		margin-top: 25px;
 	}
 }
+
+/* Phone widths: full-width form buttons, touch-sized controls, and page
+   header actions moved below the heading instead of floating beside it. */
+@media (max-width: 767px) {
+	.btn-block-xs {
+		display: block;
+		width: 100%;
+	}
+
+	.btn-block-xs + .btn-block-xs {
+		margin-top: 5px;
+	}
+
+	.btn,
+	.form-control,
+	.navbar-nav > li > a {
+		min-height: 44px;
+	}
+
+	.btn {
+		padding-top: 10px;
+		padding-bottom: 10px;
+	}
+
+	.form-control {
+		font-size: 16px;
+	}
+
+	.page-header .pull-right {
+		float: none !important;
+		margin-bottom: 10px;
+	}
+
+	.page-header > .btn.pull-right {
+		display: inline-block;
+	}
+
+	.pagination > li > a,
+	.pagination > li > span {
+		padding: 10px 14px;
+	}
+
+	.form-inline-buttons .btn {
+		margin-bottom: 5px;
+	}
+}

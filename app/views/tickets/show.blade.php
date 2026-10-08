@@ -100,7 +100,7 @@
 				<label>{{ Form::checkbox('is_internal', 1) }} Internal note (hidden from the requester)</label>
 			</div>
 			@endif
-			<button type="submit" class="btn btn-primary">Add comment</button>
+			<button type="submit" class="btn btn-primary btn-block-xs">Add comment</button>
 		{{ Form::close() }}
 		@endif
 	</div>

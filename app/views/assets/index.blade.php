@@ -35,10 +35,10 @@
 			<tr>
 				<th>Tag</th>
 				<th>Name</th>
-				<th>Type</th>
+				<th class="hidden-xs">Type</th>
 				<th>Status</th>
-				<th>Assigned to</th>
-				<th>Location</th>
+				<th class="hidden-xs">Assigned to</th>
+				<th class="hidden-xs">Location</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -46,10 +46,10 @@
 			<tr>
 				<td><a href="{{ URL::to('assets/'.$asset->id) }}">{{{ $asset->asset_tag }}}</a></td>
 				<td>{{{ $asset->name }}}</td>
-				<td>{{{ $asset->type }}}</td>
+				<td class="hidden-xs">{{{ $asset->type }}}</td>
 				<td>@include('assets._status_label', array('status' => $asset->status))</td>
-				<td>{{{ $asset->assignedUser ? $asset->assignedUser->name : '-' }}}</td>
-				<td>{{{ $asset->location ?: '-' }}}</td>
+				<td class="hidden-xs">{{{ $asset->assignedUser ? $asset->assignedUser->name : '-' }}}</td>
+				<td class="hidden-xs">{{{ $asset->location ?: '-' }}}</td>
 			</tr>
 			@endforeach
 		</tbody>

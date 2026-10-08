@@ -29,20 +29,20 @@
 		<thead>
 			<tr>
 				<th>Title</th>
-				<th>Category</th>
+				<th class="hidden-xs">Category</th>
 				@if ($user->isAgent())<th>State</th>@endif
-				<th>Updated</th>
+				<th class="hidden-xs">Updated</th>
 			</tr>
 		</thead>
 		<tbody>
 			@foreach ($articles as $article)
 			<tr>
 				<td><a href="{{ URL::to('kb/'.$article->id) }}">{{{ $article->title }}}</a></td>
-				<td>{{{ $article->category ? $article->category->name : '' }}}</td>
+				<td class="hidden-xs">{{{ $article->category ? $article->category->name : '' }}}</td>
 				@if ($user->isAgent())
 				<td>@if ($article->is_published)<span class="label label-success">Published</span>@else<span class="label label-default">Draft</span>@endif</td>
 				@endif
-				<td>{{{ $article->updated_at->format('Y-m-d') }}}</td>
+				<td class="hidden-xs">{{{ $article->updated_at->format('Y-m-d') }}}</td>
 			</tr>
 			@endforeach
 		</tbody>

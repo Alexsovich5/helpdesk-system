@@ -34,8 +34,8 @@
 			<div class="checkbox">
 				<label>{{ Form::checkbox('is_published', '1') }} Published (visible to everyone)</label>
 			</div>
-			<button type="submit" class="btn btn-primary">Save</button>
-			<a href="{{ URL::to($article->exists ? 'kb/'.$article->id : 'kb') }}" class="btn btn-link">Cancel</a>
+			<button type="submit" class="btn btn-primary btn-block-xs">Save</button>
+			<a href="{{ URL::to($article->exists ? 'kb/'.$article->id : 'kb') }}" class="btn btn-link btn-block-xs">Cancel</a>
 		{{ Form::close() }}
 	</div>
 </div>
