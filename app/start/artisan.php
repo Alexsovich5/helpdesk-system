@@ -13,3 +13,4 @@
 
 
 Artisan::resolve('SlaCheckCommand');
+Artisan::resolve('AssetsImportCommand');

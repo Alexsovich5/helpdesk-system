@@ -1,5 +1,6 @@
 <?php namespace Helpdesk\Tickets;
 
+use Asset;
 use Carbon\Carbon;
 use Helpdesk\Sla\SlaCalculator;
 use Illuminate\Database\DatabaseManager;
@@ -23,6 +24,7 @@ use User;
  *   ticket.status     (Ticket $ticket, string $from, string $to, User $actor)
  *   ticket.priority   (Ticket $ticket, string $from, string $to, User $actor)
  *   ticket.article_linked (Ticket $ticket, KbArticle $article, User $actor)
+ *   ticket.asset_linked   (Ticket $ticket, Asset $asset, User $actor)
  */
 class TicketService {
 
@@ -40,7 +42,7 @@ class TicketService {
 	}
 
 	/**
-	 * @param  array  $data  subject, description, category_id, optional priority
+	 * @param  array  $data  subject, description, category_id, optional priority and asset_id
 	 * @param  User   $requester
 	 * @return Ticket
 	 */
@@ -53,6 +55,7 @@ class TicketService {
 			$ticket->status = 'new';
 			$ticket->sla_state = 'ok';
 			$ticket->requester_id = $requester->id;
+			if ( ! empty($data['asset_id'])) $ticket->asset_id = (int) $data['asset_id'];
 			$ticket->save();
 
 			$ticket->number = TicketNumber::fromId($ticket->id);
@@ -241,6 +244,38 @@ class TicketService {
 		});
 
 		if ($linked) $this->events->fire('ticket.article_linked', array($ticket, $article, $actor));
+
+		return $ticket;
+	}
+
+	/**
+	 * Point the ticket at an asset, replacing any asset linked before.
+	 * Linking the asset that is already linked changes nothing.
+	 *
+	 * @throws AccessDeniedHttpException  the actor is not an agent
+	 */
+	public function linkAsset(Ticket $ticket, Asset $asset, User $actor)
+	{
+		if ( ! $actor->isAgent())
+		{
+			throw new AccessDeniedHttpException('Only agents can link assets to tickets.');
+		}
+
+		if ((int) $ticket->asset_id === (int) $asset->id) return $ticket;
+
+		$this->db->transaction(function() use ($ticket, $asset, $actor)
+		{
+			$previous = $ticket->asset;
+
+			$ticket->asset_id = $asset->id;
+			$ticket->save();
+
+			$this->record($ticket, $actor, 'asset_linked', $previous ? $previous->asset_tag : null, $asset->asset_tag);
+		});
+
+		$ticket->setRelation('asset', $asset);
+
+		$this->events->fire('ticket.asset_linked', array($ticket, $asset, $actor));
 
 		return $ticket;
 	}

@@ -27,6 +27,9 @@
 					<li class="{{ Request::is('tickets') || (Request::is('tickets/*') && ! Request::is('tickets/create')) ? 'active' : '' }}"><a href="{{ URL::to('tickets') }}">Tickets</a></li>
 					<li class="{{ Request::is('tickets/create') ? 'active' : '' }}"><a href="{{ URL::to('tickets/create') }}">New ticket</a></li>
 					<li class="{{ Request::is('kb') || Request::is('kb/*') ? 'active' : '' }}"><a href="{{ URL::to('kb') }}">Knowledge base</a></li>
+					@if (Auth::user()->isAgent())
+					<li class="{{ Request::is('assets') || Request::is('assets/*') ? 'active' : '' }}"><a href="{{ URL::to('assets') }}">Assets</a></li>
+					@endif
 				</ul>
 				<ul class="nav navbar-nav navbar-right">
 					<li><p class="navbar-text">{{{ Auth::user()->name }}} <span class="label label-default">{{{ Auth::user()->role }}}</span></p></li>

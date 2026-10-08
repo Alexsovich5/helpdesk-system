@@ -34,6 +34,12 @@
 					{{ Form::select('priority', array_combine($priorities, $priorities), 'normal', array('class' => 'form-control')) }}
 				</div>
 			</div>
+			@if (count($assets) > 1)
+			<div class="form-group {{ $errors->has('asset_id') ? 'has-error' : '' }}">
+				{{ Form::label('asset_id', 'Affected device', array('class' => 'control-label')) }}
+				{{ Form::select('asset_id', $assets, null, array('class' => 'form-control')) }}
+			</div>
+			@endif
 			<div class="form-group {{ $errors->has('description') ? 'has-error' : '' }}">
 				{{ Form::label('description', 'Description', array('class' => 'control-label')) }}
 				{{ Form::textarea('description', null, array('class' => 'form-control', 'rows' => 8)) }}

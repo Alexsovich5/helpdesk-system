@@ -34,6 +34,11 @@ class Ticket extends Eloquent {
 		return $this->belongsTo('Category');
 	}
 
+	public function asset()
+	{
+		return $this->belongsTo('Asset');
+	}
+
 	public function comments()
 	{
 		return $this->hasMany('TicketComment')->orderBy('id');

@@ -1,0 +1,5 @@
+asset_tag,name,type,serial,location,status,assigned_username
+LT-0101,ThinkPad T440,laptop,PC0ABC12,HQ 2nd floor,in_use,carol
+PR-0007,HP LaserJet 400 M401dn,printer,CNB9K01234,HQ print room,in_stock,
+LT-0042,Latitude E7440,laptop,5XK2Z12,Repair bench,repair,
+MN-0300,Dell U2414H,monitor,,HQ 3rd floor,lost,

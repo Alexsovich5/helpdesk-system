@@ -84,18 +84,24 @@ class TicketController extends BaseController {
 		return View::make('tickets.create', array(
 			'categories' => Category::orderBy('name')->lists('name', 'id'),
 			'priorities' => Ticket::$priorities,
+			'assets'     => $this->assetOptions(Auth::user()),
 		));
 	}
 
 	public function store()
 	{
-		$data = Input::only('subject', 'description', 'category_id', 'priority');
+		$user = Auth::user();
+		$data = Input::only('subject', 'description', 'category_id', 'priority', 'asset_id');
 
+		// Only the assets offered on the form are accepted.
 		$validator = Validator::make($data, array(
 			'subject'     => 'required|max:255',
 			'description' => 'required',
 			'category_id' => 'required|exists:categories,id',
 			'priority'    => 'required|in:'.implode(',', Ticket::$priorities),
+			'asset_id'    => 'in:'.implode(',', array_keys($this->assetOptions($user, false))),
+		), array(
+			'asset_id.in' => 'Choose one of the listed assets.',
 		));
 
 		if ($validator->fails())
@@ -103,7 +109,7 @@ class TicketController extends BaseController {
 			return Redirect::to('tickets/create')->withErrors($validator)->withInput();
 		}
 
-		$ticket = $this->tickets->create($data, Auth::user());
+		$ticket = $this->tickets->create($data, $user);
 
 		return Redirect::to('tickets/'.$ticket->number)->with('status', "Ticket {$ticket->number} created.");
 	}
@@ -113,7 +119,7 @@ class TicketController extends BaseController {
 		$ticket = $this->findOrFail($number);
 		$user = Auth::user();
 
-		$ticket->load('category', 'requester', 'assignee', 'events.user', 'comments.author', 'articles');
+		$ticket->load('category', 'requester', 'assignee', 'asset', 'events.user', 'comments.author', 'articles');
 
 		$linked = $ticket->articles->filter(function($article) use ($user)
 		{
@@ -129,7 +135,24 @@ class TicketController extends BaseController {
 			'priorities' => Ticket::$priorities,
 			'articles'   => $linked,
 			'articleOptions' => $user->isAgent() ? $this->articleOptions($ticket) : array(),
+			'assetOptions' => $user->isAgent() ? $this->assetOptions($user, false) : array(),
 		));
+	}
+
+	public function linkAsset($number)
+	{
+		$ticket = $this->findOrFail($number);
+		$asset = Asset::find(Input::get('asset_id'));
+
+		if (is_null($asset))
+		{
+			return Redirect::to('tickets/'.$ticket->number)
+				->withErrors(array('asset_id' => 'Choose an asset from the register.'));
+		}
+
+		$this->tickets->linkAsset($ticket, $asset, Auth::user());
+
+		return Redirect::to('tickets/'.$ticket->number)->with('status', "Linked asset {$asset->asset_tag}.");
 	}
 
 	public function linkArticle($number)
@@ -219,6 +242,22 @@ class TicketController extends BaseController {
 	protected function agentOptions()
 	{
 		return User::whereIn('role', array('agent', 'admin'))->orderBy('name')->lists('name', 'id');
+	}
+
+	/**
+	 * @param  bool  $withNone  add a "no asset" choice at the top
+	 * @return array asset id => label of the assets the user may pick
+	 */
+	protected function assetOptions(User $user, $withNone = true)
+	{
+		$options = array();
+
+		foreach (Asset::selectableBy($user)->orderBy('asset_tag')->get() as $asset)
+		{
+			$options[$asset->id] = $asset->label();
+		}
+
+		return $withNone ? array('' => 'No asset') + $options : $options;
 	}
 
 	/**

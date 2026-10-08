@@ -27,6 +27,9 @@
 					<dt>Category</dt><dd>{{{ $ticket->category ? $ticket->category->name : '' }}}</dd>
 					<dt>Requester</dt><dd>{{{ $ticket->requester->name }}}</dd>
 					<dt>Assignee</dt><dd>{{{ $ticket->assignee ? $ticket->assignee->name : 'Unassigned' }}}</dd>
+					@if ($ticket->asset)
+					<dt>Asset</dt><dd>@if ($user->isAgent())<a href="{{ URL::to('assets/'.$ticket->asset->id) }}">{{{ $ticket->asset->label() }}}</a>@else{{{ $ticket->asset->label() }}}@endif</dd>
+					@endif
 					<dt>Created</dt><dd>{{{ $ticket->created_at->format('Y-m-d H:i') }}}</dd>
 					<dt>SLA</dt><dd>@include('tickets._sla_badge', array('state' => $ticket->sla_state))</dd>
 					<dt>Response due</dt><dd>{{{ $ticket->response_due_at ? $ticket->response_due_at->format('Y-m-d H:i') : '-' }}}@if ($ticket->first_responded_at) <span class="text-muted small">(answered {{{ $ticket->first_responded_at->format('Y-m-d H:i') }}})</span>@endif</dd>
@@ -73,6 +76,8 @@
 						assigned it to {{{ $event->to_value }}}
 					@elseif ($event->type === 'status')
 						changed status from {{{ $event->from_value }}} to {{{ $event->to_value }}}
+					@elseif ($event->type === 'asset_linked')
+						asset linked: {{{ $event->to_value }}}@if ($event->from_value) (was {{{ $event->from_value }}})@endif
 					@elseif ($event->type === 'article_linked')
 						article linked: {{{ $event->to_value }}}
 					@else
@@ -129,6 +134,8 @@
 			</div>
 		</div>
 		@endif
+
+		@include('tickets._asset')
 
 		@include('tickets._articles')
 
