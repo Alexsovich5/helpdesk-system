@@ -1,6 +1,6 @@
 # helpdesk-system — Implementation Plan
 
-Companion to `docs/SPEC.md`. There are 16 tasks, and each one is a single commit that leaves `make test` green.
+Companion to `docs/SPEC.md`. There are 17 tasks, and each one is a single commit that leaves `make test` green.
 Commands run through Docker only; nothing needs installing on the host except Docker with Compose v2.
 
 Conventions used in every task:
@@ -39,7 +39,7 @@ service, and a `make test` that runs a unit suite and an integration suite from 
   `setUp()` runs `Artisan::call('migrate')` once per class (static flag), then `DB::beginTransaction()`; `tearDown()` rolls back.
   A `protected $useTransaction = true;` switch lets DDL-running tests (T15) opt out.
 - `bootstrap/start.php` environment detection: `$env = $app->detectEnvironment(function () { return getenv('APP_ENV') ?: 'production'; });`
-- `Dockerfile`: `FROM php:5.6-apache`; replace `/etc/apt/sources.list` with `deb [trusted=yes] http://archive.debian.org/debian stretch main`
+- `Dockerfile` (package retrieval replaced by verified downloads in T17): `FROM php:5.6-apache`; replace `/etc/apt/sources.list` with `deb [trusted=yes] http://archive.debian.org/debian stretch main`
   and run `apt-get -o Acquire::Check-Valid-Until=false update` (the image's archive keys are expired, so signed-source checks fail; documented
   deviation in SPEC §7; fallback `-o Acquire::AllowInsecureRepositories=true` + `--allow-unauthenticated`);
   install `libmcrypt-dev libldap2-dev unzip git mysql-client`; `docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu` (arch-aware);
@@ -55,7 +55,7 @@ service, and a `make test` that runs a unit suite and an integration suite from 
 - `docker/mysql/init/01-test-db.sql`: `CREATE DATABASE IF NOT EXISTS helpdesk_test CHARACTER SET utf8 COLLATE utf8_unicode_ci;`
   `GRANT ALL PRIVILEGES ON helpdesk_test.* TO 'helpdesk'@'%'; FLUSH PRIVILEGES;` (the mysql entrypoint creates `MYSQL_USER` before it runs
   init scripts; scripts run only on a fresh `db-data` volume, so `make down` has a `-v` variant `make reset-db`).
-- `.env.local.php` holding the local `APP_KEY` and a matching `.env.testing.php`. These are sample keys for a local stack; neither is a secret.
+- `.env.local.php` holding the local `APP_KEY` and a matching `.env.testing.php`. These are sample keys for a local stack; neither is a secret. (Removed in T17: a published key lets anyone forge cookies; keys are now generated per install.)
 - `Makefile` targets: `build`, `up`, `down`, `reset-db` (`docker compose down -v`), `install` (composer install in container), `smoke`, `shell`, and:
   ```
   test: test-unit test-integration
@@ -180,7 +180,7 @@ native ext-ldap implementation and an in-memory fake for tests.
 **Goal:** a period OpenLDAP container that stands in for Active Directory, and integration tests that exercise `NativeLdapGateway` against it.
 
 **Files:**
-- create `docker/ldap/Dockerfile` (`FROM debian:wheezy`; `/etc/apt/sources.list` = `deb [trusted=yes] http://archive.debian.org/debian wheezy main`,
+- create `docker/ldap/Dockerfile` (package retrieval replaced by verified downloads in T17; `FROM debian:wheezy`; `/etc/apt/sources.list` = `deb [trusted=yes] http://archive.debian.org/debian wheezy main`,
   plus `deb [trusted=yes] http://archive.debian.org/debian-security wheezy/updates main` (the image's `perl-base` is a security revision, so slapd's `perl` dependency needs that archive; SPEC §7),
   `apt-get -o Acquire::Check-Valid-Until=false update`, fallback `--force-yes` (wheezy keys expired; SPEC §7 deviation); `slapd ldap-utils`; debconf preseed domain `helpdesk.local`, admin password `admin`), `docker/ldap/seed.ldif` (ou=people, ou=groups; `alice`/`bob`/`carol` with password `password`; `groupOfNames` `helpdesk-admins`, `helpdesk-agents`), `docker/ldap/entrypoint.sh` (loads seed once, runs `slapd -d 0`),
   `app/config/integration/ldap.php` (`driver => native`, host `ldap`), `app/tests/integration/LdapDirectoryTest.php` (extends `IntegrationTestCase`, so the `users` table exists in MySQL).
@@ -469,4 +469,39 @@ Rewrite README to document the working help desk system
 
 Describe implemented features, simulated LDAP and SMTP services, how
 to run and test the stack, and the file layout from git ls-files.
+```
+
+---
+
+## T17 — Security and hygiene hardening
+
+**Goal:** close the security findings of the whole-repository review without changing the features.
+
+**Found and changed:**
+- **Committed encryption key.** `.env.local.php`, `.env.testing.php` and `docker-compose.yml` carried one fixed `APP_KEY`; Laravel 4.2 decrypts and unserializes cookies with it, so a published key allows forged cookies and PHP object injection. Both files are removed (only `.env.local.php.example` is tracked, `/.env.*.php` is ignored); `docker/app/entrypoint.sh` (the image's entry point) writes a random 32-character key to the `app-secrets` volume on first start, the test runner gets a fresh key each run, `app/config/{testing,integration}/app.php` fall back to a random key, and `Helpdesk\Security\AppKey` stops the app from booting with a missing, short or published key.
+- **Debug pages.** `app/config/local/app.php` had `debug => true` while compose published the port with `APP_ENV=local`. Debug is now off unless `APP_DEBUG=true`; the port is published on `127.0.0.1` only.
+- **CSRF.** The filter compared with `!=` and was attached per route after `auth`/`ticket.access`, and sign-out was a GET. `Helpdesk\Security\CsrfToken::matches()` requires two non-empty strings and compares with `hash_equals`; `Route::when('*', 'csrf', ['post','put','patch','delete'])` covers every write route ahead of its own filters; `/logout` is a POST form in the navbar. A token mismatch renders a 403 page.
+- **LDAP role mapping by group name.** `NativeLdapGateway` reduced group DNs to their first CN and searched the whole base DN, so a `helpdesk-admins` group in any OU granted admin. The role map is keyed by full normalised DNs (`LDAP_ROLE_MAP` = `dn:role;dn:role`), the gateway returns DNs and keeps only groups below `group_base_dn` (default `ou=groups,<base_dn>`), and the group search runs there only. Connection, service-bind and search failures throw `LdapUnavailableException` instead of looking like "no such user".
+- **Stale agents kept receiving ticket mail.** Migration `2014_07_07_000000_add_account_state_to_users_table` adds `users.active`, `role_verified_at`, `last_login_at`. Staff notifications go only to active agents/admins whose role is local or was confirmed within `ldap.role_max_age_days` (30); an ineligible assignee is replaced by the agent list. A sign-in for a directory user whose entry is gone, ambiguous or disabled (AD `userAccountControl` bit 2) deactivates and demotes them; an outage only refuses the sign-in. `php artisan users:sync-roles` (`Helpdesk\Auth\RoleSync`, hourly in `scheduler`) re-checks agents/admins, looks everyone up before writing, and changes nothing on an outage. Deactivated users are signed out on their next request and are not offered as assignees.
+- **Host header in links.** `URL::to()` used the request's `Host`, so a request with a forged `Host` put that host into notification links. `Helpdesk\Http\HostGuard` roots every URL at `app.url` (`APP_URL`, required in production) at boot and per request, and answers 400 for a `Host` that is not `app.url`'s host or in `TRUSTED_HOSTS` (compose: `localhost,127.0.0.1,app`).
+- **CSV formula injection.** `CsvExporter::cell()` prefixes `'` to every string cell (header included) starting with `=`, `+`, `-`, `@`, tab or CR; numbers stay numbers. The export is `text/csv; charset=utf-8` as an attachment.
+- **Secrets in logs.** PHP 5.6 traces contain call arguments, so the logged `PDOException` of a failed connection held the database password. `Helpdesk\Support\ExceptionLog` logs class, message, file, line and argument-free traces (previous exceptions included) and masks the app key and every configured password.
+- **Unauthenticated package retrieval.** Both period images installed from `[trusted=yes] http://` archive sources (`--force-yes` on wheezy). A `debian:bookworm-slim` stage now runs `docker/debs/fetch_verified_debs.sh` on `docker/debs/app.list` / `ldap.list`: HTTPS-only downloads from snapshot.debian.org, `gpgv` against the archive and removed-keys keyrings (expired keys still verified; a modified Release must fail), then Packages and `.deb` SHA256 and size. The period stages remove all apt sources and `dpkg -i` the verified files; `php:5.6-apache` and `debian:wheezy` are pinned by digest and Composer's phar is checked against its published SHA256. The `ldap` service builds with the repository root as context.
+- **Directory simulator.** `seed.ldif` adds `ou=delegated` with a same-named `helpdesk-admins` group (member `carol`) and a duplicated `dana`; the entrypoint stores the seed's SHA256 and reloads the directory from the package's empty database when the seed changes.
+- **Error page with status 200.** Laravel 4.2 answers 200 "Error in exception handler" when an `App::error` handler throws; `make demo` ran artisan as root through `docker compose exec`, so a root-owned `laravel.log` made every later error a 200. The logging handler now catches its own failure (the 500 page is shown), `make demo` runs artisan as `www-data`, and processes started with `docker compose exec` (which skip the entry point) read the key through `APP_KEY_FILE` in `app/config/app.php`.
+- Minor: non-string login fields fail the sign-in instead of raising an error; the smoke test checks that a foreign `Host` gets 400; the stock `@author` tag in `public/index.php` is gone.
+
+**Files:** `Makefile`, `public/index.php`, `Dockerfile`, `docker/ldap/Dockerfile`, `docker/ldap/entrypoint.sh`, `docker/ldap/seed.ldif`, `docker/debs/*`, `docker/app/entrypoint.sh`, `docker-compose.yml`, `docker/smoke.sh`, `.gitignore`, `.env.local.php.example` (and removal of `.env.local.php`, `.env.testing.php`), `app/Helpdesk/{Security,Http,Support}/*`, `app/Helpdesk/Auth/*`, `app/Helpdesk/Notifications/TicketNotifier.php`, `app/Helpdesk/Reports/CsvExporter.php`, `app/commands/UsersSyncRolesCommand.php`, migration above, `app/models/User.php`, `app/routes.php`, `app/filters.php`, `app/start/{global,artisan}.php`, `app/config/{app,ldap}.php`, `app/config/{local,testing,integration}/app.php`, `app/config/testing/ldap.php`, controllers `Auth`, `Report`, `Ticket`, `app/views/layouts/master.blade.php`, `public/css/app.css`, `DemoSeeder.php`, `README.md`, `docs/SPEC.md`.
+
+**Tests written first (seen failing against the previous code):** `app/tests/unit/Security/{BuildSourcesTest,SecretsAndExposureTest,CsrfTokenTest}.php`, `app/tests/unit/Auth/NativeLdapGatewayTest.php`, new cases in `RoleMapperTest`, `LdapUserProviderTest`, `TicketNotifierTest`, `CsvExporterTest`, `ReportTest`, `LdapDirectoryTest`, and `app/tests/functional/{CsrfTest,HostHeaderTest,SecretRedactionTest,UsersSyncRolesCommandTest}.php`.
+
+**Acceptance command:** `make test`
+
+**Commit message:**
+```
+Harden secrets, CSRF, LDAP roles and package retrieval
+
+Generate APP_KEY per install, map roles by group DN, retire stale
+agents, pin links to APP_URL, sanitise CSV cells, redact logged
+secrets and install only gpg-verified Debian packages.
 ```

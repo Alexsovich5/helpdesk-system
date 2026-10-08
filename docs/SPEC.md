@@ -36,16 +36,25 @@ compliance.
 5. **E-mail notification system** — SMTP e-mail (Swift Mailer via Laravel `Mail`) on: ticket
    created (requester + agents), ticket assigned (assignee), public comment added (other party),
    status changed (requester), SLA warning/breach (assignee, or all agents if unassigned).
+   Staff recipients (assignee and agent list) are limited to active agents/admins whose role is
+   local or was confirmed by the directory within `ldap.role_max_age_days` (default 30); an
+   assignee who no longer qualifies is replaced by the agent list. Requester mail is unchanged.
 6. **Mobile-responsive interface** — Bootstrap 3.2 grid, collapsing navbar, `table-responsive`
    lists, viewport meta; every page usable at 320 px width.
 7. **Reporting and analytics** — dashboard for agents/admins over a date range: tickets by
    status, priority and category; created vs resolved; SLA compliance % (response and
    resolution); mean time to first response and to resolution; per-agent open/resolved counts;
-   CSV export of the ticket list for the range.
+   CSV export of the ticket list for the range. Every string cell that starts with `=`, `+`, `-`,
+   `@`, tab or carriage return is prefixed with `'` so spreadsheets do not run it as a formula.
 8. **LDAP authentication** — sign-in by LDAP simple bind (configurable user filter so
    `(uid=%s)` for OpenLDAP or `(sAMAccountName=%s)` for Active Directory), first-login user
    provisioning, group-to-role mapping (`admin`, `agent`, `requester`), fallback to local
-   database accounts (bcrypt) for break-glass admin.
+   database accounts (bcrypt) for break-glass admin. Roles are mapped from full, normalised group
+   DNs (case-insensitive, whitespace around RDN separators removed), and only groups below
+   `group_base_dn` (default `ou=groups,<base_dn>`) count, so a same-named group in another OU
+   grants nothing. A directory user whose entry is gone, ambiguous or disabled is deactivated
+   and demoted at their next sign-in attempt; `php artisan users:sync-roles` (hourly in the
+   `scheduler` container) re-checks every directory agent and admin.
 
 ## 3. Out of scope (with reason)
 
@@ -57,7 +66,7 @@ compliance.
 | Business-hours / holiday SLA calendars | Adds a calendar engine; SLA clocks run on wall-clock time (24×7). |
 | SLA clock pause while `pending` | Kept simple: the clock does not pause; listed as a known limitation. |
 | Charts/graphs in reports | Reports are tables and Bootstrap progress bars; a charting library adds a JS build step without changing the analytics. |
-| `.env` file + `php artisan key:generate` flow as written in the old README | That is the Laravel 5 convention; Laravel 4.2 uses `.env.php` / `.env.<environment>.php` arrays and environment variables. `key:generate` is not used: in 4.2 it string-replaces a literal key inside `app/config/app.php`, which cannot work once `app.php` reads `getenv('APP_KEY')`. The key comes from `.env.local.php` (sample value, not a secret). |
+| `.env` file + `php artisan key:generate` flow as written in the old README | That is the Laravel 5 convention; Laravel 4.2 uses `.env.php` / `.env.<environment>.php` arrays and environment variables. `key:generate` is not used: in 4.2 it string-replaces a literal key inside `app/config/app.php`, which cannot work once `app.php` reads `getenv('APP_KEY')`. No key is kept in the repository: `docker/app/entrypoint.sh` writes a random 32-character key to the `app-secrets` volume on first start (T17); only `.env.local.php.example` is tracked. |
 | Employer/role/timeline/"Status: Complete" claims | Not technical scope; not reproduced anywhere. |
 
 ## 4. Architecture
@@ -164,8 +173,8 @@ When a ticket enters `resolved`, `TicketService` stores `state(ticket, resolved_
 
 | Method | Path | Filter | Action |
 |---|---|---|---|
-| GET/POST | `/login` | guest(+csrf) | `AuthController@getLogin/postLogin` |
-| GET | `/logout` | auth | `AuthController@getLogout` |
+| GET/POST | `/login` | guest | `AuthController@getLogin/postLogin` |
+| POST | `/logout` | auth | `AuthController@postLogout` |
 | GET | `/` | auth | dashboard (my tickets / queue) |
 | GET | `/tickets` | auth | list: `?status=&priority=&category=&assignee=&q=&page=` |
 | GET/POST | `/tickets/create`, `/tickets` | auth | new ticket |
@@ -178,10 +187,16 @@ When a ticket enters `resolved`, `TicketService` stores `state(ticket, resolved_
 | POST | `/tickets/{number}/articles` | role:agent | link KB article |
 | GET | `/kb`, `/kb/{id}` | auth | browse/search (`?q=`), read |
 | GET/POST/PUT | `/kb/create`, `/kb`, `/kb/{id}/edit`, `/kb/{id}` | role:agent | author |
-| GET/POST | `/kb/categories` | role:agent(+csrf) | list KB categories with article counts, add a category |
+| GET/POST | `/kb/categories` | role:agent | list KB categories with article counts, add a category |
 | resource | `/assets` | role:agent (index/show), role:admin (write) | asset register |
 | GET | `/reports?from=YYYY-MM-DD&to=YYYY-MM-DD` | role:agent | dashboard |
-| GET | `/reports/export.csv?from=&to=` | role:agent | CSV |
+| GET | `/reports/export.csv?from=&to=` | role:agent | CSV (`text/csv; charset=utf-8`, attachment) |
+
+Every POST, PUT, PATCH and DELETE request passes the `csrf` filter (`Route::when('*', 'csrf', …)` in
+`app/routes.php`), which runs before the route's own filters and accepts only a string `_token` equal to the
+session token (`hash_equals`). Every request first passes `App::before` (`app/filters.php`): a `Host` header that is
+neither `app.url`'s host nor in `app.trusted_hosts` gets 400, and a signed-in user who has been deactivated is
+signed out. Links are always built from `app.url` (`URL::forceRootUrl`), never from the request's `Host`.
 
 ### 5.5 Artisan commands
 
@@ -189,7 +204,10 @@ When a ticket enters `resolved`, `TicketService` stores `state(ticket, resolved_
 php artisan migrate --seed                 # schema + SLA defaults + demo data (local env)
 php artisan sla:check [--dry-run]          # evaluate SLA states; prints "checked N, warning W, breached B"
 php artisan assets:import path/to.csv      # upsert by asset_tag; prints "created C, updated U, skipped S"
+php artisan users:sync-roles               # re-check directory agents/admins; prints "checked N, verified V, demoted D, deactivated X"
 ```
+
+`users:sync-roles` looks every user up before it writes anything; a directory outage exits non-zero and changes nothing.
 CSV header: `asset_tag,name,type,serial,location,status,assigned_username` (UTF-8, comma).
 
 ### 5.6 Configuration (environment variables read in `app/config/*.php`)
@@ -197,7 +215,10 @@ CSV header: `asset_tag,name,type,serial,location,status,assigned_username` (UTF-
 | Variable | Default (docker) | Used in |
 |---|---|---|
 | `APP_ENV` | `local` | `bootstrap/start.php` environment detection |
-| `APP_KEY` | 32-char string in `.env.local.php` | `app/config/app.php` |
+| `APP_KEY` | random, generated into `/var/lib/helpdesk/app_key` (volume `app-secrets`) by `docker/app/entrypoint.sh` (processes started with `docker compose exec` read the file named by `APP_KEY_FILE`); the app refuses to start without a 32-character key | `app/config/app.php`, `Helpdesk\Security\AppKey` |
+| `APP_URL` | `http://localhost:20680` (required in production) | `app/config/app.php`, root of every generated link |
+| `TRUSTED_HOSTS` | `localhost,127.0.0.1,app` | extra `Host` names accepted besides `APP_URL`'s host |
+| `APP_DEBUG` | unset (debug pages off) | `app/config/local/app.php`; `true` turns on detailed error pages for a development session |
 | `DB_HOST`/`DB_DATABASE`/`DB_USERNAME`/`DB_PASSWORD` | `db`/`helpdesk`/`helpdesk`/`helpdesk` | `database.php` |
 | `DB_TEST_DATABASE` | `helpdesk_test` | `app/config/integration/database.php` (integration suite only) |
 | `MAIL_HOST`/`MAIL_PORT`/`MAIL_FROM` | `smtp-sink`/`1025`/`helpdesk@helpdesk.local` | `mail.php` |
@@ -205,7 +226,9 @@ CSV header: `asset_tag,name,type,serial,location,status,assigned_username` (UTF-
 | `LDAP_BASE_DN` | `dc=helpdesk,dc=local` | `ldap.php` |
 | `LDAP_BIND_DN`/`LDAP_BIND_PASSWORD` | `cn=admin,dc=helpdesk,dc=local`/`admin` | service bind for search |
 | `LDAP_USER_FILTER` | `(uid=%s)` | AD: `(sAMAccountName=%s)` |
-| `LDAP_ROLE_MAP` | `helpdesk-admins:admin,helpdesk-agents:agent` | `RoleMapper` |
+| `LDAP_GROUP_BASE_DN` | `ou=groups,<LDAP_BASE_DN>` | only groups below it count for roles |
+| `LDAP_ROLE_MAP` | `cn=helpdesk-admins,ou=groups,dc=helpdesk,dc=local` → admin, `cn=helpdesk-agents,ou=groups,dc=helpdesk,dc=local` → agent (array in `ldap.php`) | `RoleMapper`; the variable is `dn:role;dn:role` (role after the last colon) |
+| `LDAP_ROLE_MAX_AGE_DAYS` | `30` | `TicketNotifier`: staff mail only to directory agents confirmed within this many days |
 
 The LDAP implementation is chosen by the `ldap.driver` config key (`native` in `app/config/ldap.php`,
 `fake` in `app/config/testing/ldap.php`); there is no separate on/off switch. Local database accounts
@@ -223,8 +246,9 @@ Two MySQL databases on the one `db` server keep test data and demo data apart:
 | `helpdesk_test` | integration suite only (`IntegrationTestCase`) | created by `docker/mysql/init/01-test-db.sql`; each test runs in a rolled-back transaction; the one committing test (`MigrateAndSeedTest`) leaves an empty migrated schema behind |
 
 Environment of the compose `test` service (the only service that runs PHPUnit): `DB_HOST=db`, `DB_DATABASE=helpdesk`,
-`DB_TEST_DATABASE=helpdesk_test`, `DB_USERNAME=helpdesk`, `DB_PASSWORD=helpdesk`, `APP_KEY` (same sample key as `.env.local.php`,
-since no `.env.integration.php` is loaded), `LDAP_HOST=ldap`, `MAIL_HOST=smtp-sink`, `MAIL_PORT=1025`. Unit and functional tests ignore
+`DB_TEST_DATABASE=helpdesk_test`, `DB_USERNAME=helpdesk`, `DB_PASSWORD=helpdesk`, `LDAP_HOST=ldap`, `MAIL_HOST=smtp-sink`,
+`MAIL_PORT=1025`. It has no `app-secrets` volume, so the entrypoint gives every run its own random `APP_KEY`
+(`app/config/testing/app.php` and `app/config/integration/app.php` also fall back to a random key). Unit and functional tests ignore
 the `DB_*` values (sqlite `:memory:` from `app/config/testing/database.php`).
 
 Test environments: Laravel 4.2's stock `TestCase` forces `$app['env'] = 'testing'` whatever `APP_ENV` says,
@@ -237,7 +261,11 @@ so the MySQL, slapd and smtp-sink configs are actually used.
 
 ```php
 interface LdapGateway {
-    /** @return array|null ['dn'=>..,'username'=>..,'name'=>..,'email'=>..,'groups'=>[cn,..]] */
+    /**
+     * @return array|null ['dn'=>..,'username'=>..,'name'=>..,'email'=>..,'groups'=>[group DN,..],'disabled'=>bool];
+     *                    null when no entry, or more than one, matches
+     * @throws LdapUnavailableException  connection, service bind or search failed
+     */
     public function findUser($username);
     /** @return bool true if a simple bind with $dn/$password succeeds */
     public function bind($dn, $password);
@@ -280,33 +308,33 @@ The exact composer.json manifest that passed the gate is reproduced in `IMPLEMEN
 
 | Service | Image | Notes |
 |---|---|---|
-| app, scheduler, test runner | `php:5.6-apache` | Debian stretch base; apt sources must point at `archive.debian.org` (see deviation below). Multi-arch. |
+| app, scheduler, test runner | `php:5.6-apache` (pinned by digest) | Debian stretch base; Debian packages come only from the verified set described below. Multi-arch. |
 | db | `mysql:5.6` | amd64 only → `platform: linux/amd64` in compose (emulated on Apple Silicon). Env `MYSQL_DATABASE=helpdesk`, `MYSQL_USER`/`MYSQL_PASSWORD=helpdesk`; `docker/mysql/init/` mounted at `/docker-entrypoint-initdb.d`, whose `01-test-db.sql` creates `helpdesk_test` (utf8_unicode_ci) and `GRANT ALL ON helpdesk_test.* TO 'helpdesk'@'%'`. Init scripts run only when the data volume is first created (`make down -v` re-runs them). |
-| ldap (simulator) | built `FROM debian:wheezy` | Debian 7, slapd 2.4.31 from `archive.debian.org`. No arm64 image (386, amd64, armv5, armv7 only) → `platform: linux/amd64` on the `ldap` service too. `osixia/openldap` has no 2014-era tag (oldest remaining is 1.2.4, OpenLDAP 2.4.47), so a period Debian base is used instead. |
+| ldap (simulator) | built `FROM debian:wheezy` (pinned by digest) | Debian 7, slapd 2.4.31 from the verified set described below. No arm64 image (386, amd64, armv5, armv7 only) → `platform: linux/amd64` on the `ldap` service too. `osixia/openldap` has no 2014-era tag (oldest remaining is 1.2.4, OpenLDAP 2.4.47), so a period Debian base is used instead. |
 | smtp-sink (fake) | built `FROM python:2.7` | Runs `docker/smtp-sink/sink.py`. |
 
-**Deviation — unauthenticated archive apt sources.** The `debian-archive-keyring` inside `php:5.6-apache`
-(stretch) and `debian:wheezy` only holds keys that have since expired, and archive.debian.org now also signs
-with newer keys those images lack, so a normal `apt-get update` fails with "invalid signature / not signed".
-Both Dockerfiles therefore mark the archive source as trusted and ignore the expired `Valid-Until`:
+**Deviation — verified package retrieval instead of apt.** The `debian-archive-keyring` inside `php:5.6-apache`
+(stretch) and `debian:wheezy` only holds keys that have since expired, so apt in those images cannot verify the
+archives. Instead of relaxing apt's checks (the original plan), each Dockerfile has a first stage on a current
+`debian:bookworm-slim` (pinned by digest) that runs `docker/debs/fetch_verified_debs.sh` with a manifest
+(`docker/debs/app.list`, `docker/debs/ldap.list`):
 
-```
-# app (stretch)
-echo 'deb [trusted=yes] http://archive.debian.org/debian stretch main' > /etc/apt/sources.list
-# ldap (wheezy, apt 0.9.7 also honours [trusted=yes])
-echo 'deb [trusted=yes] http://archive.debian.org/debian wheezy main' > /etc/apt/sources.list
-apt-get -o Acquire::Check-Valid-Until=false update
-```
+1. `Release` and `Release.gpg` are fetched over HTTPS only (redirects too) from snapshot.debian.org and checked
+   with `gpgv` against `debian-archive-keyring.gpg` and `debian-archive-removed-keys.gpg` (the stretch and wheezy
+   keys have expired, which does not make their signatures any less checkable); a `VALIDSIG` and no bad,
+   unverifiable, missing-key or revoked signature are required, and a modified copy of `Release` must fail;
+2. `main/binary-amd64/Packages(.gz)` must match the SHA256 and size in `Release`;
+3. every `.deb` must match the SHA256 and size in `Packages`.
 
-The ldap image also lists `deb [trusted=yes] http://archive.debian.org/debian-security wheezy/updates main`:
-`debian:wheezy` ships `perl-base 5.14.2-21+deb7u6` from the security archive, and slapd's `perl` dependency
-only resolves against that same revision. Every slapd build left in the archive is a Debian security revision of
-upstream 2.4.31 (`2.4.31-2+deb7u2` in main, `+deb7u3` in updates, which is what gets installed); the upstream
-OpenLDAP release stays 2.4.31.
-
-(fallback if `[trusted=yes]` is ignored: `-o Acquire::AllowInsecureRepositories=true` plus `--allow-unauthenticated`
-on stretch, `--force-yes` on wheezy). Package integrity then rests on HTTP from archive.debian.org only; acceptable
-for a local period reconstruction, not for production. `make build` in T1 (app) and T4 (ldap) proves it works.
+The period stage copies only those files, removes every apt source and installs them with `dpkg -i` in manifest
+order; it never runs `apt-get`. The manifests list the requested packages plus every dependency apt resolved
+against the image (stretch 9.13 from `snapshot.debian.org/archive/debian/20230301T000000Z`; wheezy 7.11 and
+wheezy/updates from the `20190301T000000Z` snapshots — `debian:wheezy` ships `perl-base 5.14.2-21+deb7u6` from the
+security archive, and slapd's `perl` dependency only resolves against that revision, so slapd is
+`2.4.31-2+deb7u3`, a Debian security revision of upstream 2.4.31). `app/tests/unit/Security/BuildSourcesTest.php`
+fails if any Dockerfile or apt file reintroduces `--allow-unauthenticated`, `--force-yes`, `[trusted=yes]`,
+`AllowUnauthenticated`, `--no-check-gpg` or an `http://` source. Composer's phar is checked against its published
+SHA256.
 
 Pinned-patch tags `php:5.6.0-apache` and `mysql:5.6.20` also exist but are very old images that Docker 29 may refuse to pull. Using them is optional; the floating `5.6` tags are the default.
 
@@ -314,7 +342,7 @@ Pinned-patch tags `php:5.6.0-apache` and `mysql:5.6.20` also exist but are very 
 
 | Real system | Replacement | Where |
 |---|---|---|
-| Active Directory / corporate LDAP | **OpenLDAP slapd simulator** (`docker/ldap/`), seeded from `docker/ldap/seed.ldif` with users `alice` (admin), `bob` (agent), `carol` (requester) and groups `helpdesk-admins`, `helpdesk-agents` | integration tests, demo |
+| Active Directory / corporate LDAP | **OpenLDAP slapd simulator** (`docker/ldap/`), seeded from `docker/ldap/seed.ldif` with users `alice` (admin), `bob` (agent), `carol` (requester), groups `helpdesk-admins`, `helpdesk-agents` under `ou=groups`, a same-named `helpdesk-admins` group under `ou=delegated` (must grant nothing) and a duplicated `dana` (ambiguous, login refused); the simulator reloads the seed whenever `seed.ldif` changes | integration tests, demo |
 | LDAP in unit tests | **`Helpdesk\Auth\FakeLdapGateway`** (in-memory directory) | `app/tests/unit` |
 | Corporate SMTP relay | **smtp-sink fake SMTP server** (Python 2.7 `smtpd`, writes each message to `/var/mail-sink/*.eml`, shared volume) | integration tests, demo |
 | Mail in unit/functional tests | Laravel `Mail::pretend(true)` + Mockery expectations on `TicketNotifier` | `app/tests` |
@@ -376,4 +404,6 @@ There is no other tracked file. `docs/SPEC.md` and `docs/IMPLEMENTATION_PLAN.md`
 - PHP 5.6, Laravel 4.2 and MySQL 5.6 are end-of-life and have known vulnerabilities. This is a period reconstruction and must not be exposed to the internet.
 - Composer 2.2 LTS is used as the install tool (see §6); all installed packages are 2014 releases.
 - `mysql:5.6` and the `debian:wheezy` LDAP simulator are amd64-only; on ARM hosts they run under emulation and are slower.
-- Period Debian packages are installed from archive.debian.org with signature checks relaxed (§7 deviation).
+- Period Debian packages are fetched from snapshot.debian.org and verified (signature, index and package checksums) before installation (§7); the packages themselves are old and unpatched.
+- The compose stack uses lab default credentials (MySQL `helpdesk`/`helpdesk` and `root`/`root`, LDAP `cn=admin`/`admin`, local `admin`/`admin`, directory users with `password`), serves plain HTTP and publishes only on 127.0.0.1.
+- Roles change at sign-in and at the hourly `users:sync-roles`; until then a user removed from a group keeps the role (but gets no staff mail once the role is older than `ldap.role_max_age_days`).

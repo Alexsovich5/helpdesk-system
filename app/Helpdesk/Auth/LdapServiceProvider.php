@@ -21,6 +21,13 @@ class LdapServiceProvider extends ServiceProvider {
 
 			return new NativeLdapGateway($config, $app['log']->getMonolog());
 		});
+
+		$this->app->bind('Helpdesk\Auth\RoleMapper', function($app)
+		{
+			$map = $app['config']['ldap.role_map'];
+
+			return is_array($map) ? new RoleMapper($map) : RoleMapper::fromString($map);
+		});
 	}
 
 	public function boot()
@@ -31,7 +38,7 @@ class LdapServiceProvider extends ServiceProvider {
 		{
 			return new LdapUserProvider(
 				$app->make('Helpdesk\Auth\LdapGateway'),
-				RoleMapper::fromString($app['config']['ldap.role_map']),
+				$app->make('Helpdesk\Auth\RoleMapper'),
 				$app['hash']
 			);
 		});

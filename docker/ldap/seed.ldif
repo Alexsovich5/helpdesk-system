@@ -48,3 +48,32 @@ dn: cn=helpdesk-agents,ou=groups,dc=helpdesk,dc=local
 objectClass: groupOfNames
 cn: helpdesk-agents
 member: uid=bob,ou=people,dc=helpdesk,dc=local
+
+# A group that users outside the help desk could create or be given: it has
+# the same common name as the admin group but sits outside ou=groups, so it
+# must not grant any role.
+dn: ou=delegated,dc=helpdesk,dc=local
+objectClass: organizationalUnit
+ou: delegated
+
+dn: cn=helpdesk-admins,ou=delegated,dc=helpdesk,dc=local
+objectClass: groupOfNames
+cn: helpdesk-admins
+member: uid=carol,ou=people,dc=helpdesk,dc=local
+
+# Two entries with the same uid: a login as "dana" is ambiguous and refused.
+dn: uid=dana,ou=people,dc=helpdesk,dc=local
+objectClass: inetOrgPerson
+uid: dana
+cn: Dana One
+sn: One
+mail: dana@helpdesk.local
+userPassword: password
+
+dn: uid=dana,ou=delegated,dc=helpdesk,dc=local
+objectClass: inetOrgPerson
+uid: dana
+cn: Dana Two
+sn: Two
+mail: dana2@helpdesk.local
+userPassword: password

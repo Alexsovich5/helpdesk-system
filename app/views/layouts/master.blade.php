@@ -34,7 +34,11 @@
 				</ul>
 				<ul class="nav navbar-nav navbar-right">
 					<li><p class="navbar-text">{{{ Auth::user()->name }}} <span class="label label-default">{{{ Auth::user()->role }}}</span></p></li>
-					<li><a href="{{ URL::to('logout') }}">Sign out</a></li>
+					<li>
+						{{ Form::open(array('url' => 'logout', 'class' => 'navbar-form navbar-signout')) }}
+							<button type="submit" class="btn btn-link navbar-btn">Sign out</button>
+						{{ Form::close() }}
+					</li>
 				</ul>
 				@endif
 			</div>

@@ -160,6 +160,9 @@ class DemoSeeder extends Seeder {
 			$user->role = $info[1];
 			$user->source = 'ldap';
 			$user->password = null;
+			$user->active = true;
+			// The roles match docker/ldap/seed.ldif, so count them as confirmed.
+			$user->role_verified_at = Carbon::now();
 			$user->save();
 
 			$users[$username] = $user;

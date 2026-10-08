@@ -20,13 +20,25 @@ return array(
 	| Application URL
 	|--------------------------------------------------------------------------
 	|
-	| This URL is used by the console to properly generate URLs when using
-	| the Artisan command line tool. You should set this to the root of
-	| your application so that it is used when running Artisan tasks.
+	| The address users open (APP_URL, required in production). Every link
+	| the application generates, including those in e-mails, starts with it;
+	| the request's Host header is never used for links.
 	|
 	*/
 
-	'url' => 'http://localhost',
+	'url' => getenv('APP_URL') ?: 'http://localhost',
+
+	/*
+	|--------------------------------------------------------------------------
+	| Trusted Hosts
+	|--------------------------------------------------------------------------
+	|
+	| Host names requests may use besides the host of app.url, as a comma
+	| separated list (TRUSTED_HOSTS). Requests for any other Host get a 400.
+	|
+	*/
+
+	'trusted_hosts' => getenv('TRUSTED_HOSTS') ?: '',
 
 	/*
 	|--------------------------------------------------------------------------
@@ -72,13 +84,13 @@ return array(
 	| Encryption Key
 	|--------------------------------------------------------------------------
 	|
-	| This key is used by the Illuminate encrypter service and should be set
-	| to a random, 32 character string, otherwise these encrypted strings
-	| will not be safe. Please do this before deploying an application!
+	| A random 32-character string per installation, from APP_KEY or the
+	| file docker/app/entrypoint.sh writes (APP_KEY_FILE). The application
+	| refuses to start without one (app/start/global.php).
 	|
 	*/
 
-	'key' => getenv('APP_KEY'),
+	'key' => getenv('APP_KEY') ?: Helpdesk\Security\AppKey::fromFile(getenv('APP_KEY_FILE') ?: '/var/lib/helpdesk/app_key'),
 
 	'cipher' => MCRYPT_RIJNDAEL_128,
 

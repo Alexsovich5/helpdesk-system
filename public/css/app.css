@@ -90,3 +90,23 @@ body {
 		margin-bottom: 5px;
 	}
 }
+
+/* Sign out is a POST form styled like the other navbar links. */
+.navbar-signout {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	box-shadow: none;
+}
+
+.navbar-signout .btn-link {
+	color: #777;
+	padding: 15px;
+	margin: 0;
+}
+
+.navbar-signout .btn-link:hover,
+.navbar-signout .btn-link:focus {
+	color: #333;
+	text-decoration: none;
+}

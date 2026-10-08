@@ -17,10 +17,11 @@ up:
 # Rebuilds the helpdesk database from scratch with the demo data (local env
 # runs DemoSeeder), so it can be run again at any time. The plain migrate
 # first creates the migrations table on a new database, which
-# migrate:refresh needs.
+# migrate:refresh needs. Artisan runs as www-data so any log file it
+# creates stays writable for Apache.
 demo: up
-	docker compose exec -T app php artisan migrate --force
-	docker compose exec -T app php artisan migrate:refresh --seed --force
+	docker compose exec -T -u www-data app php artisan migrate --force
+	docker compose exec -T -u www-data app php artisan migrate:refresh --seed --force
 
 down:
 	docker compose down

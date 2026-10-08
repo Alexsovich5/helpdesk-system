@@ -6,7 +6,10 @@ interface LdapGateway {
 	 * Look a user up in the directory.
 	 *
 	 * @param  string  $username
-	 * @return array|null ['dn'=>..,'username'=>..,'name'=>..,'email'=>..,'groups'=>[cn,..]]
+	 * @return array|null ['dn'=>..,'username'=>..,'name'=>..,'email'=>..,
+	 *                     'groups'=>[group DN,..],'disabled'=>bool];
+	 *                     null when no entry, or more than one, matches
+	 * @throws LdapUnavailableException  the directory could not be searched
 	 */
 	public function findUser($username);
 

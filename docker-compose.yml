@@ -4,10 +4,15 @@ services:
   app:
     build: .
     image: helpdesk-system:app
+    # Loopback only: the demo stack is not meant to be reachable from the network.
     ports:
-      - "20680:80"
+      - "127.0.0.1:20680:80"
     environment:
       APP_ENV: local
+      # Links in pages and e-mails; the Host names below are also accepted
+      # ("app" is how the smoke test reaches the container).
+      APP_URL: http://localhost:20680
+      TRUSTED_HOSTS: localhost,127.0.0.1,app
       DB_HOST: db
       DB_DATABASE: helpdesk
       DB_USERNAME: helpdesk
@@ -16,6 +21,8 @@ services:
       MAIL_PORT: "1025"
     volumes:
       - mail-sink:/var/mail-sink
+      # APP_KEY, generated on first start (docker/app/entrypoint.sh).
+      - app-secrets:/var/lib/helpdesk
     depends_on:
       db:
         condition: service_healthy
@@ -40,12 +47,14 @@ services:
       retries: 30
       start_period: 20s
 
-  # Runs sla:check once a minute against the helpdesk database.
+  # Runs sla:check once a minute and users:sync-roles once an hour against
+  # the helpdesk database.
   scheduler:
     image: helpdesk-system:app
-    command: ["sh", "-c", "while true; do php artisan sla:check; sleep 60; done"]
+    command: ["sh", "-c", "n=0; while true; do php artisan sla:check; if [ $$((n % 60)) -eq 0 ]; then php artisan users:sync-roles; fi; n=$$((n + 1)); sleep 60; done"]
     environment:
       APP_ENV: local
+      APP_URL: http://localhost:20680
       DB_HOST: db
       DB_DATABASE: helpdesk
       DB_USERNAME: helpdesk
@@ -54,14 +63,18 @@ services:
       MAIL_PORT: "1025"
     volumes:
       - mail-sink:/var/mail-sink
+      - app-secrets:/var/lib/helpdesk
     depends_on:
       db:
         condition: service_healthy
       smtp-sink:
         condition: service_healthy
+      ldap:
+        condition: service_healthy
 
   # Runs PHPUnit. Unit and functional suites use sqlite in memory;
-  # the integration suite uses the helpdesk_test database on db.
+  # the integration suite uses the helpdesk_test database on db. Without
+  # the app-secrets volume, every run gets its own random APP_KEY.
   test:
     image: helpdesk-system:app
     profiles: ["test"]
@@ -71,7 +84,6 @@ services:
       DB_TEST_DATABASE: helpdesk_test
       DB_USERNAME: helpdesk
       DB_PASSWORD: helpdesk
-      APP_KEY: LocalSampleKeyForHelpdeskStack32
       LDAP_HOST: ldap
       MAIL_HOST: smtp-sink
       MAIL_PORT: "1025"
@@ -81,7 +93,9 @@ services:
 
   # OpenLDAP directory standing in for Active Directory (docker/ldap).
   ldap:
-    build: ./docker/ldap
+    build:
+      context: .
+      dockerfile: docker/ldap/Dockerfile
     image: helpdesk-system:ldap
     platform: linux/amd64
     volumes:
@@ -108,6 +122,7 @@ services:
       start_period: 5s
 
 volumes:
+  app-secrets:
   db-data:
   ldap-data:
   mail-sink:

@@ -40,7 +40,7 @@ class ReportController extends BaseController {
 		$filename = sprintf('tickets-%s-to-%s.csv', $from->toDateString(), $to->toDateString());
 
 		return Response::make($csv, 200, array(
-			'Content-Type'        => 'text/csv; charset=UTF-8',
+			'Content-Type'        => 'text/csv; charset=utf-8',
 			'Content-Disposition' => 'attachment; filename="'.$filename.'"',
 		));
 	}

@@ -54,7 +54,7 @@ class LdapLoginTest extends TestCase {
 	{
 		$this->post('/login', array('username' => 'carol', 'password' => 'password'));
 		$first = Auth::user()->id;
-		$this->call('GET', '/logout');
+		$this->post('/logout');
 		$this->assertFalse(Auth::check());
 
 		$this->post('/login', array('username' => 'carol', 'password' => 'password'));

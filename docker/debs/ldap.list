@@ -1,0 +1,32 @@
+# Debian packages installed into the directory simulator image
+# (debian:wheezy), fetched and verified by fetch_verified_debs.sh. Format
+# as in app.list.
+#
+# The pkg lines are slapd and ldap-utils plus every dependency missing from
+# the base image, as apt-get resolved them against the final wheezy (7.11)
+# and wheezy/updates archives, in install order.
+
+repo main     https://snapshot.debian.org/archive/debian/20190301T000000Z          wheezy         main
+repo security https://snapshot.debian.org/archive/debian-security/20190301T000000Z wheezy/updates main
+
+pkg libgpg-error0     1.10-3.1                  main
+pkg libgcrypt11       1.5.0-5+deb7u6            security
+pkg libgdbm3          1.8.3-11                  main
+pkg libtasn1-3        2.13-2+deb7u5             security
+pkg libp11-kit0       0.12-3                    main
+pkg libgnutls26       2.12.20-8+deb7u5          main
+pkg libsasl2-2        2.1.25.dfsg1-6+deb7u1     main
+pkg libwrap0          7.6.q-24                  main
+pkg libldap-2.4-2     2.4.31-2+deb7u3           security
+pkg libltdl7          2.4.2-1.1                 main
+pkg libodbc1          2.2.14p2-5                main
+pkg libperl5.14       5.14.2-21+deb7u6          security
+pkg libslp1           1.2.1-9+deb7u2            security
+pkg psmisc            22.19-1+deb7u1            main
+pkg libswitch-perl    2.16-2                    main
+pkg libclass-isa-perl 0.36-3                    main
+pkg perl-modules      5.14.2-21+deb7u6          security
+pkg perl              5.14.2-21+deb7u6          security
+pkg adduser           3.113+nmu3                main
+pkg slapd             2.4.31-2+deb7u3           security
+pkg ldap-utils        2.4.31-2+deb7u3           security

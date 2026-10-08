@@ -1,0 +1,36 @@
+# Debian packages installed into the app image (php:5.6-apache, stretch),
+# fetched and verified by fetch_verified_debs.sh.
+#
+# repo NAME BASE_URL DIST COMPONENT
+#   An archive on snapshot.debian.org. BASE_URL must be https://.
+# pkg NAME VERSION REPO
+#   One .deb; NAME and VERSION must match a stanza in REPO's verified
+#   Packages index for amd64.
+#
+# The pkg lines are libmcrypt-dev, libldap2-dev, unzip, git and
+# mysql-client plus every dependency missing from (or older in) the base
+# image, as apt-get resolved them against stretch 9.13, in install order.
+
+repo main https://snapshot.debian.org/archive/debian/20230301T000000Z stretch main
+
+pkg libldap-common           2.4.44+dfsg-5+deb9u4  main
+pkg libldap-2.4-2            2.4.44+dfsg-5+deb9u4  main
+pkg libcurl3-gnutls          7.52.1-5+deb9u10      main
+pkg liberror-perl            0.17024-1             main
+pkg git-man                  1:2.11.0-3+deb9u7     main
+pkg git                      1:2.11.0-3+deb9u7     main
+pkg readline-common          7.0-3                 main
+pkg mysql-common             5.8+1.0.2             main
+pkg mariadb-common           10.1.45-0+deb9u1      main
+pkg libaio1                  0.3.110-3             main
+pkg libreadline5             5.2+dfsg-3+b1         main
+pkg mariadb-client-core-10.1 10.1.45-0+deb9u1      main
+pkg libconfig-inifiles-perl  2.94-1                main
+pkg libjemalloc1             3.6.0-9.1             main
+pkg mariadb-client-10.1      10.1.45-0+deb9u1      main
+pkg default-mysql-client     1.0.2                 main
+pkg libmcrypt4               2.5.8-3.3             main
+pkg libmcrypt-dev            2.5.8-3.3             main
+pkg mysql-client             5.5.9999+default      main
+pkg unzip                    6.0-21+deb9u2         main
+pkg libldap2-dev             2.4.44+dfsg-5+deb9u4  main

@@ -4,3 +4,6 @@
 !/app/storage/**/.gitignore
 .DS_Store
 /public/vendor
+# Per-install environment files (APP_KEY and other secrets); only the
+# .example copies are tracked.
+/.env.*.php

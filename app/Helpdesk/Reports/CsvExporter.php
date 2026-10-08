@@ -5,6 +5,12 @@ use Carbon\Carbon;
 /**
  * Builds CSV text with fputcsv, so commas, quotes and line breaks in values
  * are quoted the standard way.
+ *
+ * Spreadsheet programs run a cell that starts with = + - @ (or a tab or
+ * carriage return before one) as a formula, so a ticket subject such as
+ * =HYPERLINK(...) would execute when an agent opens the export. Every string
+ * cell, header included, that starts with one of those characters gets a
+ * leading single quote. Integers and floats are written as numbers.
  */
 class CsvExporter {
 
@@ -22,11 +28,11 @@ class CsvExporter {
 	{
 		$handle = fopen('php://temp', 'r+');
 
-		fputcsv($handle, $header);
+		fputcsv($handle, array_map(array($this, 'cell'), $header));
 
 		foreach ($rows as $row)
 		{
-			fputcsv($handle, $row);
+			fputcsv($handle, array_map(array($this, 'cell'), $row));
 		}
 
 		rewind($handle);
@@ -64,6 +70,17 @@ class CsvExporter {
 		}
 
 		return $this->toCsv(static::$ticketHeader, $rows);
+	}
+
+	/**
+	 * @param  mixed  $value
+	 * @return mixed
+	 */
+	public function cell($value)
+	{
+		if ( ! is_string($value) || $value === '') return $value;
+
+		return strpbrk($value[0], "=+-@\t\r") === false ? $value : "'".$value;
 	}
 
 	protected function time(Carbon $value = null)

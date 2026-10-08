@@ -99,7 +99,7 @@ class ReportTest extends TestCase {
 		$response = $this->call('GET', '/reports/export.csv', array('from' => '2014-01-01', 'to' => '2014-01-31'));
 
 		$this->assertSame(200, $response->getStatusCode());
-		$this->assertContains('text/csv', $response->headers->get('Content-Type'));
+		$this->assertSame('text/csv; charset=utf-8', $response->headers->get('Content-Type'));
 		$this->assertSame(
 			'attachment; filename="tickets-2014-01-01-to-2014-01-31.csv"',
 			$response->headers->get('Content-Disposition')

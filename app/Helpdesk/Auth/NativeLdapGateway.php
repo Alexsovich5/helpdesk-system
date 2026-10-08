@@ -5,6 +5,12 @@ use Psr\Log\LoggerInterface;
 /**
  * LDAP gateway on top of ext-ldap. Searches with a service account, then
  * checks passwords with a simple bind as the user's DN.
+ *
+ * Group memberships are returned as full DNs and only for groups below
+ * group_base_dn (default ou=groups,<base_dn>): memberOf values outside it
+ * are dropped, and the groupOfNames search (OpenLDAP) is run there only.
+ * Connection, service-bind and search failures throw
+ * LdapUnavailableException; their messages never contain a password.
  */
 class NativeLdapGateway implements LdapGateway {
 
@@ -19,8 +25,8 @@ class NativeLdapGateway implements LdapGateway {
 	protected $log;
 
 	/**
-	 * @param  array  $config  host, port, base_dn, bind_dn, bind_password,
-	 *                         user_filter, username_attribute
+	 * @param  array  $config  host, port, base_dn, group_base_dn, bind_dn,
+	 *                         bind_password, user_filter, username_attribute
 	 */
 	public function __construct(array $config, LoggerInterface $log = null)
 	{
@@ -28,6 +34,7 @@ class NativeLdapGateway implements LdapGateway {
 			'host'               => 'localhost',
 			'port'               => 389,
 			'base_dn'            => '',
+			'group_base_dn'      => null,
 			'bind_dn'            => null,
 			'bind_password'      => null,
 			'user_filter'        => '(uid=%s)',
@@ -35,6 +42,45 @@ class NativeLdapGateway implements LdapGateway {
 		), $config);
 
 		$this->log = $log;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function groupBaseDn()
+	{
+		if ( ! empty($this->config['group_base_dn'])) return $this->config['group_base_dn'];
+
+		return 'ou=groups,'.$this->config['base_dn'];
+	}
+
+	/**
+	 * The DNs from $dns that lie below $base, in their original spelling.
+	 *
+	 * @param  array   $dns
+	 * @param  string  $base
+	 * @return array
+	 */
+	public static function groupsWithin(array $dns, $base)
+	{
+		return array_values(array_filter($dns, function($dn) use ($base)
+		{
+			return RoleMapper::isWithin($dn, $base);
+		}));
+	}
+
+	/**
+	 * Active Directory accounts with ACCOUNTDISABLE (0x2) set in
+	 * userAccountControl.
+	 *
+	 * @param  array  $entry  as returned by ldap_get_entries()
+	 * @return bool
+	 */
+	public static function isDisabled(array $entry)
+	{
+		if ( ! isset($entry['useraccountcontrol'][0])) return false;
+
+		return ((int) $entry['useraccountcontrol'][0] & 2) === 2;
 	}
 
 	/**
@@ -70,27 +116,21 @@ class NativeLdapGateway implements LdapGateway {
 	{
 		$link = $this->connect();
 
-		if ( ! $link) return null;
-
 		try
 		{
-			if ( ! @ldap_bind($link, $this->config['bind_dn'], $this->config['bind_password']))
-			{
-				$this->warn('service bind failed: '.ldap_error($link));
-
-				return null;
-			}
+			$this->serviceBind($link);
 
 			$attribute = strtolower($this->config['username_attribute']);
 			$filter = static::userFilter($this->config['user_filter'], $username);
-			$fields = array($attribute, 'cn', 'displayname', 'mail', 'memberof');
+			$fields = array($attribute, 'cn', 'displayname', 'mail', 'memberof', 'useraccountcontrol');
 
 			$search = @ldap_search($link, $this->config['base_dn'], $filter, $fields);
 
-			if ( ! $search) return null;
+			if ( ! $search) $this->unavailable('user search failed: '.ldap_error($link));
 
 			$entries = ldap_get_entries($link, $search);
 
+			// No entry, or an ambiguous name that matches several.
 			if ($entries['count'] !== 1) return null;
 
 			$entry = $entries[0];
@@ -104,6 +144,7 @@ class NativeLdapGateway implements LdapGateway {
 				'name'     => $name ?: $username,
 				'email'    => $this->first($entry, 'mail'),
 				'groups'   => $this->groups($link, $entry, $dn),
+				'disabled' => static::isDisabled($entry),
 			);
 		}
 		finally
@@ -117,9 +158,14 @@ class NativeLdapGateway implements LdapGateway {
 		// An empty password makes an unauthenticated bind, which many servers accept.
 		if ((string) $password === '' || (string) $dn === '') return false;
 
-		$link = $this->connect();
-
-		if ( ! $link) return false;
+		try
+		{
+			$link = $this->connect();
+		}
+		catch (LdapUnavailableException $e)
+		{
+			return false;
+		}
 
 		$ok = @ldap_bind($link, $dn, $password);
 
@@ -129,18 +175,14 @@ class NativeLdapGateway implements LdapGateway {
 	}
 
 	/**
-	 * @return resource|false
+	 * @return resource
+	 * @throws LdapUnavailableException
 	 */
 	protected function connect()
 	{
 		$link = @ldap_connect($this->config['host'], (int) $this->config['port']);
 
-		if ( ! $link)
-		{
-			$this->warn('cannot connect to '.$this->config['host']);
-
-			return false;
-		}
+		if ( ! $link) $this->unavailable('cannot connect to '.$this->config['host']);
 
 		ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, 3);
 		ldap_set_option($link, LDAP_OPT_REFERRALS, 0);
@@ -150,14 +192,39 @@ class NativeLdapGateway implements LdapGateway {
 	}
 
 	/**
-	 * Group common names from memberOf (Active Directory), or from a search
-	 * for groupOfNames entries listing the DN as a member (OpenLDAP).
+	 * Bind as the service account. The password is read from the config
+	 * here, so it never appears in an argument list of the trace.
+	 *
+	 * @throws LdapUnavailableException
+	 */
+	protected function serviceBind($link)
+	{
+		if (@ldap_bind($link, $this->config['bind_dn'], $this->config['bind_password'])) return;
+
+		$this->unavailable('service bind as '.$this->config['bind_dn'].' failed: '.ldap_error($link));
+	}
+
+	/**
+	 * @throws LdapUnavailableException
+	 */
+	protected function unavailable($message)
+	{
+		$this->warn($message);
+
+		throw new LdapUnavailableException('LDAP: '.$message);
+	}
+
+	/**
+	 * DNs of the user's groups below groupBaseDn(): from memberOf (Active
+	 * Directory), or from a search there for groupOfNames entries listing
+	 * the user's DN as a member (OpenLDAP).
 	 *
 	 * @return array
 	 */
 	protected function groups($link, array $entry, $dn)
 	{
 		$dns = array();
+		$base = $this->groupBaseDn();
 
 		if (isset($entry['memberof']))
 		{
@@ -169,7 +236,10 @@ class NativeLdapGateway implements LdapGateway {
 		else
 		{
 			$filter = '(&(objectClass=groupOfNames)(member='.static::escape($dn).'))';
-			$search = @ldap_search($link, $this->config['base_dn'], $filter, array('cn'));
+			$search = @ldap_search($link, $base, $filter, array('cn'));
+
+			// A missing group base yields "No such object"; anything else is an outage.
+			if ( ! $search && ldap_errno($link) !== 32) $this->unavailable('group search failed: '.ldap_error($link));
 
 			if ($search)
 			{
@@ -182,14 +252,7 @@ class NativeLdapGateway implements LdapGateway {
 			}
 		}
 
-		$names = array();
-
-		foreach ($dns as $groupDn)
-		{
-			if (preg_match('/^cn=([^,]+)/i', $groupDn, $m)) $names[] = $m[1];
-		}
-
-		return $names;
+		return static::groupsWithin($dns, $base);
 	}
 
 	protected function first(array $entry, $attribute)

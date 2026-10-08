@@ -12,10 +12,12 @@ Personal project built on the 2014-era stack (PHP 5.6, Laravel 4.2, MySQL 5.6, B
 - **SLA monitoring and alerts.** Per-priority response and resolution targets, due times set on creation and recomputed when the priority changes, and `php artisan sla:check` marking tickets `warning` (80 % of the window used) or `breached`, recording an event and sending one alert per state change. The `scheduler` container runs it every minute. Code: `app/Helpdesk/Sla/SlaCalculator.php`, `app/Helpdesk/Sla/SlaMonitor.php`, `app/commands/SlaCheckCommand.php`. Tests: `app/tests/unit/Sla/SlaCalculatorTest.php`, `app/tests/unit/Sla/SlaMonitorTest.php`, `app/tests/functional/SlaCheckCommandTest.php`, `app/tests/integration/SlaCheckMysqlTest.php`.
 - **Knowledge base.** Categories and articles with published/draft state; agents write and edit, everyone reads published articles; keyword search; agents link articles to tickets and the ticket page lists them. Code: `app/Helpdesk/Kb/ArticleSearch.php`, `app/controllers/KbArticleController.php`, `app/controllers/KbCategoryController.php`. Tests: `app/tests/unit/Kb/ArticleSearchTest.php`, `app/tests/unit/Kb/TicketArticleLinkTest.php`, `app/tests/functional/KnowledgeBaseTest.php`.
 - **Asset tracking.** Asset register (tag, name, type, serial, location, status, assigned user), tickets linked to assets, each asset's ticket history, and `php artisan assets:import <file.csv>` to create or update assets from a CSV export. Code: `app/Helpdesk/Assets/AssetCsvImporter.php`, `app/commands/AssetsImportCommand.php`, `app/controllers/AssetController.php`. Tests: `app/tests/unit/Assets/AssetCsvImporterTest.php`, `app/tests/unit/Assets/TicketAssetLinkTest.php`, `app/tests/functional/AssetTest.php`, `app/tests/functional/AssetsImportCommandTest.php`.
-- **E-mail notifications.** SMTP mail through Laravel `Mail` when a ticket is created, assigned, commented on publicly, changes status, or reaches an SLA warning or breach. Code: `app/Helpdesk/Notifications/TicketNotifier.php`, templates in `app/views/emails`. Tests: `app/tests/unit/Notifications/TicketNotifierTest.php`, `app/tests/integration/MailDeliveryTest.php`.
+- **E-mail notifications.** SMTP mail through Laravel `Mail` when a ticket is created, assigned, commented on publicly, changes status, or reaches an SLA warning or breach. Staff mail goes only to active agents and admins whose role is local or was confirmed by the directory in the last 30 days (`LDAP_ROLE_MAX_AGE_DAYS`); links in every message start with `APP_URL`, whatever `Host` the triggering request used. Code: `app/Helpdesk/Notifications/TicketNotifier.php`, templates in `app/views/emails`. Tests: `app/tests/unit/Notifications/TicketNotifierTest.php`, `app/tests/integration/MailDeliveryTest.php`.
 - **Mobile-responsive interface.** Bootstrap 3.2 grid, collapsing navbar, `table-responsive` lists and a viewport meta tag on every page, laid out for screens down to 320 px wide. Code: `app/views/layouts/master.blade.php`, `public/css/app.css`. Tests: `app/tests/functional/ResponsiveMarkupTest.php`.
-- **Reporting and analytics.** Dashboard for a date range: tickets by status, priority and category, created vs resolved, SLA compliance for response and resolution, mean time to first response and to resolution, per-agent counts, and a CSV export of the tickets in the range. Code: `app/Helpdesk/Reports/ReportService.php`, `app/Helpdesk/Reports/CsvExporter.php`, `app/controllers/ReportController.php`. Tests: `app/tests/unit/Reports/ReportServiceTest.php`, `app/tests/unit/Reports/CsvExporterTest.php`, `app/tests/functional/ReportTest.php`, `app/tests/integration/ReportServiceMysqlTest.php`.
-- **LDAP authentication.** Simple-bind sign-in with a configurable user filter (`(uid=%s)` for OpenLDAP, `(sAMAccountName=%s)` for Active Directory), user provisioning on first login, directory groups mapped to the `admin`, `agent` and `requester` roles, and local bcrypt accounts as a fallback. Code: `app/Helpdesk/Auth/LdapUserProvider.php`, `app/Helpdesk/Auth/NativeLdapGateway.php`, `app/Helpdesk/Auth/RoleMapper.php`, `app/config/ldap.php`. Tests: `app/tests/unit/Auth/LdapUserProviderTest.php`, `app/tests/unit/Auth/RoleMapperTest.php`, `app/tests/functional/LdapLoginTest.php`, `app/tests/integration/LdapDirectoryTest.php`.
+- **Reporting and analytics.** Dashboard for a date range: tickets by status, priority and category, created vs resolved, SLA compliance for response and resolution, mean time to first response and to resolution, per-agent counts, and a CSV export of the tickets in the range; exported cells that start with `=`, `+`, `-`, `@`, tab or carriage return get a leading `'` so spreadsheets do not run them as formulas. Code: `app/Helpdesk/Reports/ReportService.php`, `app/Helpdesk/Reports/CsvExporter.php`, `app/controllers/ReportController.php`. Tests: `app/tests/unit/Reports/ReportServiceTest.php`, `app/tests/unit/Reports/CsvExporterTest.php`, `app/tests/functional/ReportTest.php`, `app/tests/integration/ReportServiceMysqlTest.php`.
+- **LDAP authentication.** Simple-bind sign-in with a configurable user filter (`(uid=%s)` for OpenLDAP, `(sAMAccountName=%s)` for Active Directory), user provisioning on first login, and local bcrypt accounts as a fallback. Roles come from full group DNs: `LDAP_ROLE_MAP` is `dn:role;dn:role` (e.g. `CN=Helpdesk Admins,OU=Helpdesk Groups,DC=corp,DC=example:admin`), compared case-insensitively, and only groups below `LDAP_GROUP_BASE_DN` (default `ou=groups,<base DN>`) count, so a group with the same name elsewhere grants nothing. A user whose directory entry is gone, ambiguous or disabled is deactivated at their next sign-in attempt, and `php artisan users:sync-roles` (hourly in the `scheduler` container) demotes or deactivates agents and admins the directory no longer backs; a directory outage changes nothing. Code: `app/Helpdesk/Auth/LdapUserProvider.php`, `app/Helpdesk/Auth/NativeLdapGateway.php`, `app/Helpdesk/Auth/RoleMapper.php`, `app/Helpdesk/Auth/RoleSync.php`, `app/commands/UsersSyncRolesCommand.php`, `app/config/ldap.php`. Tests: `app/tests/unit/Auth/LdapUserProviderTest.php`, `app/tests/unit/Auth/RoleMapperTest.php`, `app/tests/unit/Auth/NativeLdapGatewayTest.php`, `app/tests/functional/LdapLoginTest.php`, `app/tests/functional/UsersSyncRolesCommandTest.php`, `app/tests/integration/LdapDirectoryTest.php`.
+- **Request and secret handling.** Every POST, PUT, PATCH and DELETE needs the session's CSRF token (strict, constant-time comparison); sign-out is a POST; requests for a `Host` other than `APP_URL`'s host or `TRUSTED_HOSTS` get 400; no `APP_KEY` is stored in the repository (the app container generates one per install) and the app refuses to start without one; error pages are generic unless `APP_DEBUG=true`; logged exceptions carry no call arguments and configured passwords are masked. Code: `app/filters.php`, `app/Helpdesk/Security/CsrfToken.php`, `app/Helpdesk/Http/HostGuard.php`, `app/Helpdesk/Security/AppKey.php`, `docker/app/entrypoint.sh`, `app/Helpdesk/Support/ExceptionLog.php`. Tests: `app/tests/functional/CsrfTest.php`, `app/tests/unit/Security/CsrfTokenTest.php`, `app/tests/functional/HostHeaderTest.php`, `app/tests/unit/Security/SecretsAndExposureTest.php`, `app/tests/functional/SecretRedactionTest.php`.
+- **Verified image packages.** The Debian packages of the app and directory images are downloaded over HTTPS from snapshot.debian.org and checked (Release signature with `gpgv` against the Debian archive keyrings, then index and package SHA256) before `dpkg` installs them; apt is not used in the period images. Code: `docker/debs/fetch_verified_debs.sh`, `docker/debs/app.list`, `docker/debs/ldap.list`, `Dockerfile`, `docker/ldap/Dockerfile`. Tests: `app/tests/unit/Security/BuildSourcesTest.php`.
 
 **Not implemented / known limitations**
 
@@ -27,11 +29,13 @@ Personal project built on the 2014-era stack (PHP 5.6, Laravel 4.2, MySQL 5.6, B
 - Notifications are sent synchronously, so a slow or unavailable SMTP server slows down the request that triggered them.
 - Reports are tables, progress bars and CSV; there are no charts.
 - No file attachments, no REST API, and no password reset for directory users (they change passwords in the directory).
-- Configuration uses Laravel 4.2's `.env.local.php` arrays and environment variables, not a .env file; the app key there is a sample value, not a secret.
+- Configuration uses environment variables (and optionally Laravel 4.2's `.env.<environment>.php` arrays, see `.env.local.php.example`), not a .env file.
+- The compose stack uses lab default credentials (MySQL `helpdesk`/`helpdesk` and `root`/`root`, LDAP `cn=admin`/`admin`, the local `admin`/`admin` account, directory users with `password`), serves plain HTTP without TLS, and publishes the app on 127.0.0.1 only.
+- Roles change at sign-in and at the hourly `users:sync-roles` run; in between, a user removed from a directory group keeps the role in the app (staff mail stops once the role is older than 30 days).
 - PHP 5.6, Laravel 4.2 and MySQL 5.6 are end-of-life and have known vulnerabilities. This must not be exposed to the internet.
 - Composer 2.2 LTS installs the dependencies, because Composer 1 can no longer read Packagist; every installed package is a 2014 release.
 - The `mysql:5.6` image and the Debian wheezy LDAP image are amd64-only and run under emulation on ARM hosts.
-- Debian packages come from archive.debian.org with signature checks relaxed, because the keys in the old images have expired.
+- The Debian packages in the images are verified downloads but old and unpatched releases (stretch 9.13, wheezy 7.11).
 
 ## Built with
 
@@ -51,7 +55,7 @@ docker compose up        # start the stack
 make demo && make smoke  # load the demo data, then sign in over HTTP and open tickets and reports
 ```
 
-The app listens on http://localhost:20680. The demo directory users are `alice` (admin), `bob` (agent) and `carol` (requester), all with the password `password`; the local fallback account is `admin` / `admin`. Captured e-mail lands as .eml files in the `mail-sink` volume.
+The app listens on http://localhost:20680 (loopback only). On first start the app container writes a random `APP_KEY` to the `app-secrets` volume; set `APP_URL` (and `TRUSTED_HOSTS` for other host names) when the app is reached under another address, and `APP_DEBUG=true` only for a development session. The demo directory users are `alice` (admin), `bob` (agent) and `carol` (requester), all with the password `password`; the local fallback account is `admin` / `admin`. Captured e-mail lands as .eml files in the `mail-sink` volume.
 
 ## Tests
 
@@ -68,8 +72,7 @@ The tree below is `git ls-files` rendered by `docker/layout-tree.php`; `app/test
 ```
 .
 ├── .dockerignore
-├── .env.local.php
-├── .env.testing.php
+├── .env.local.php.example
 ├── .gitignore
 ├── Dockerfile
 ├── Makefile
@@ -83,9 +86,13 @@ The tree below is `git ls-files` rendered by `docker/layout-tree.php`; `app/test
 │   │   │   ├── FakeLdapGateway.php
 │   │   │   ├── LdapGateway.php
 │   │   │   ├── LdapServiceProvider.php
+│   │   │   ├── LdapUnavailableException.php
 │   │   │   ├── LdapUserProvider.php
 │   │   │   ├── NativeLdapGateway.php
-│   │   │   └── RoleMapper.php
+│   │   │   ├── RoleMapper.php
+│   │   │   └── RoleSync.php
+│   │   ├── Http
+│   │   │   └── HostGuard.php
 │   │   ├── Kb
 │   │   │   └── ArticleSearch.php
 │   │   ├── Notifications
@@ -93,9 +100,14 @@ The tree below is `git ls-files` rendered by `docker/layout-tree.php`; `app/test
 │   │   ├── Reports
 │   │   │   ├── CsvExporter.php
 │   │   │   └── ReportService.php
+│   │   ├── Security
+│   │   │   ├── AppKey.php
+│   │   │   └── CsrfToken.php
 │   │   ├── Sla
 │   │   │   ├── SlaCalculator.php
 │   │   │   └── SlaMonitor.php
+│   │   ├── Support
+│   │   │   └── ExceptionLog.php
 │   │   └── Tickets
 │   │       ├── InvalidTransitionException.php
 │   │       ├── StatusMachine.php
@@ -104,7 +116,8 @@ The tree below is `git ls-files` rendered by `docker/layout-tree.php`; `app/test
 │   ├── commands
 │   │   ├── .gitkeep
 │   │   ├── AssetsImportCommand.php
-│   │   └── SlaCheckCommand.php
+│   │   ├── SlaCheckCommand.php
+│   │   └── UsersSyncRolesCommand.php
 │   ├── config
 │   │   ├── app.php
 │   │   ├── auth.php
@@ -112,6 +125,7 @@ The tree below is `git ls-files` rendered by `docker/layout-tree.php`; `app/test
 │   │   ├── compile.php
 │   │   ├── database.php
 │   │   ├── integration
+│   │   │   ├── app.php
 │   │   │   ├── database.php
 │   │   │   ├── ldap.php
 │   │   │   └── mail.php
@@ -156,7 +170,8 @@ The tree below is `git ls-files` rendered by `docker/layout-tree.php`; `app/test
 │   │   │   ├── 2014_06_23_000100_create_kb_articles_table.php
 │   │   │   ├── 2014_06_23_000200_create_ticket_kb_article_table.php
 │   │   │   ├── 2014_06_30_000000_create_assets_table.php
-│   │   │   └── 2014_06_30_000100_add_asset_id_to_tickets_table.php
+│   │   │   ├── 2014_06_30_000100_add_asset_id_to_tickets_table.php
+│   │   │   └── 2014_07_07_000000_add_account_state_to_users_table.php
 │   │   └── seeds
 │   │       ├── .gitkeep
 │   │       ├── CategoryTableSeeder.php
@@ -209,13 +224,17 @@ The tree below is `git ls-files` rendered by `docker/layout-tree.php`; `app/test
 │   │   │   ├── AssetTest.php
 │   │   │   ├── AssetsImportCommandTest.php
 │   │   │   ├── AuthTest.php
+│   │   │   ├── CsrfTest.php
+│   │   │   ├── HostHeaderTest.php
 │   │   │   ├── KnowledgeBaseTest.php
 │   │   │   ├── LdapLoginTest.php
 │   │   │   ├── PriorityChangeTest.php
 │   │   │   ├── ReportTest.php
 │   │   │   ├── ResponsiveMarkupTest.php
+│   │   │   ├── SecretRedactionTest.php
 │   │   │   ├── SlaCheckCommandTest.php
-│   │   │   └── TicketFlowTest.php
+│   │   │   ├── TicketFlowTest.php
+│   │   │   └── UsersSyncRolesCommandTest.php
 │   │   ├── integration
 │   │   │   ├── LdapDirectoryTest.php
 │   │   │   ├── MailDeliveryTest.php
@@ -229,6 +248,7 @@ The tree below is `git ls-files` rendered by `docker/layout-tree.php`; `app/test
 │   │       │   └── TicketAssetLinkTest.php
 │   │       ├── Auth
 │   │       │   ├── LdapUserProviderTest.php
+│   │       │   ├── NativeLdapGatewayTest.php
 │   │       │   └── RoleMapperTest.php
 │   │       ├── EnvironmentTest.php
 │   │       ├── Kb
@@ -241,6 +261,10 @@ The tree below is `git ls-files` rendered by `docker/layout-tree.php`; `app/test
 │   │       ├── Reports
 │   │       │   ├── CsvExporterTest.php
 │   │       │   └── ReportServiceTest.php
+│   │       ├── Security
+│   │       │   ├── BuildSourcesTest.php
+│   │       │   ├── CsrfTokenTest.php
+│   │       │   └── SecretsAndExposureTest.php
 │   │       ├── Sla
 │   │       │   ├── SlaCalculatorTest.php
 │   │       │   ├── SlaMonitorTest.php
@@ -304,6 +328,12 @@ The tree below is `git ls-files` rendered by `docker/layout-tree.php`; `app/test
 ├── docker
 │   ├── apache
 │   │   └── 000-default.conf
+│   ├── app
+│   │   └── entrypoint.sh
+│   ├── debs
+│   │   ├── app.list
+│   │   ├── fetch_verified_debs.sh
+│   │   └── ldap.list
 │   ├── layout-tree.php
 │   ├── ldap
 │   │   ├── Dockerfile

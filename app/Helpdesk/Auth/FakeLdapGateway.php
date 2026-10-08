@@ -27,7 +27,14 @@ class FakeLdapGateway implements LdapGateway {
 	protected $filters = array();
 
 	/**
-	 * @param  array   $users  username => ['password'=>..,'groups'=>[..],'name'=>..,'email'=>..]
+	 * Thrown by findUser() while set, to simulate an outage.
+	 *
+	 * @var \Exception|null
+	 */
+	protected $failure;
+
+	/**
+	 * @param  array   $users  username => ['password'=>..,'groups'=>[group DN,..],'name'=>..,'email'=>..,'disabled'=>bool]
 	 * @param  string  $userFilter
 	 */
 	public function __construct(array $users = array(), $userFilter = '(uid=%s)')
@@ -43,6 +50,8 @@ class FakeLdapGateway implements LdapGateway {
 				isset($user['name']) ? $user['name'] : null,
 				isset($user['email']) ? $user['email'] : null
 			);
+
+			if ( ! empty($user['disabled'])) $this->setDisabled($username, true);
 		}
 	}
 
@@ -54,6 +63,7 @@ class FakeLdapGateway implements LdapGateway {
 			'name'     => $name ?: $username,
 			'email'    => $email,
 			'groups'   => array_values($groups),
+			'disabled' => false,
 			'password' => (string) $password,
 		);
 	}
@@ -61,6 +71,24 @@ class FakeLdapGateway implements LdapGateway {
 	public function setGroups($username, array $groups)
 	{
 		$this->users[strtolower($username)]['groups'] = array_values($groups);
+	}
+
+	public function setDisabled($username, $disabled)
+	{
+		$this->users[strtolower($username)]['disabled'] = (bool) $disabled;
+	}
+
+	public function removeUser($username)
+	{
+		unset($this->users[strtolower($username)]);
+	}
+
+	/**
+	 * Make findUser() throw $e until called again with null.
+	 */
+	public function failWith(\Exception $e = null)
+	{
+		$this->failure = $e;
 	}
 
 	/**
@@ -73,6 +101,8 @@ class FakeLdapGateway implements LdapGateway {
 
 	public function findUser($username)
 	{
+		if ($this->failure) throw $this->failure;
+
 		$this->filters[] = NativeLdapGateway::userFilter($this->userFilter, $username);
 
 		$key = strtolower($username);

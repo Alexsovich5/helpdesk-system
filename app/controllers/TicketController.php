@@ -176,7 +176,7 @@ class TicketController extends BaseController {
 		$ticket = $this->findOrFail($number);
 		$assignee = User::find(Input::get('assignee_id'));
 
-		if (is_null($assignee) || ! $assignee->isAgent())
+		if (is_null($assignee) || ! $assignee->isAgent() || ! $assignee->active)
 		{
 			return Redirect::to('tickets/'.$ticket->number)
 				->withErrors(array('assignee_id' => 'Choose an agent to assign the ticket to.'));
@@ -237,11 +237,11 @@ class TicketController extends BaseController {
 	}
 
 	/**
-	 * @return array user id => name for everyone who can be assigned a ticket
+	 * @return array user id => name for every active agent and admin
 	 */
 	protected function agentOptions()
 	{
-		return User::whereIn('role', array('agent', 'admin'))->orderBy('name')->lists('name', 'id');
+		return User::whereIn('role', array('agent', 'admin'))->where('active', true)->orderBy('name')->lists('name', 'id');
 	}
 
 	/**

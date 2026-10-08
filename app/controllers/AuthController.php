@@ -24,7 +24,8 @@ class AuthController extends BaseController {
 			'password' => Input::get('password'),
 		);
 
-		if (Auth::attempt($credentials, (bool) Input::get('remember')))
+		if (is_string($credentials['username']) && is_string($credentials['password'])
+			&& Auth::attempt($credentials, (bool) Input::get('remember')))
 		{
 			return Redirect::intended('/');
 		}
@@ -34,7 +35,7 @@ class AuthController extends BaseController {
 			->withInput(Input::except('password'));
 	}
 
-	public function getLogout()
+	public function postLogout()
 	{
 		Auth::logout();
 

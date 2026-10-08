@@ -7,6 +7,9 @@ use Helpdesk\Auth\RoleMapper;
 
 class LdapUserProviderTest extends TestCase {
 
+	const ADMINS = 'cn=helpdesk-admins,ou=groups,dc=helpdesk,dc=local';
+	const AGENTS = 'cn=helpdesk-agents,ou=groups,dc=helpdesk,dc=local';
+
 	/** @var FakeLdapGateway */
 	protected $directory;
 
@@ -20,13 +23,13 @@ class LdapUserProviderTest extends TestCase {
 		Artisan::call('migrate');
 
 		$this->directory = new FakeLdapGateway(array(), '(uid=%s)');
-		$this->directory->addUser('alice', 'password', array('helpdesk-admins'), 'Alice Admin', 'alice@helpdesk.local');
-		$this->directory->addUser('bob', 'password', array('helpdesk-agents'), 'Bob Agent', 'bob@helpdesk.local');
+		$this->directory->addUser('alice', 'password', array(static::ADMINS), 'Alice Admin', 'alice@helpdesk.local');
+		$this->directory->addUser('bob', 'password', array(static::AGENTS), 'Bob Agent', 'bob@helpdesk.local');
 		$this->directory->addUser('carol', 'password', array(), 'Carol Requester', 'carol@helpdesk.local');
 
 		$this->provider = new LdapUserProvider(
 			$this->directory,
-			RoleMapper::fromString('helpdesk-admins:admin,helpdesk-agents:agent'),
+			RoleMapper::fromString(static::ADMINS.':admin;'.static::AGENTS.':agent'),
 			$this->app['hash']
 		);
 	}
@@ -96,7 +99,7 @@ class LdapUserProviderTest extends TestCase {
 		$this->attempt('bob', 'password');
 		$this->assertSame('agent', User::where('username', 'bob')->first()->role);
 
-		$this->directory->setGroups('bob', array('helpdesk-admins'));
+		$this->directory->setGroups('bob', array(static::ADMINS));
 		$this->attempt('bob', 'password');
 		$this->assertSame('admin', User::where('username', 'bob')->first()->role);
 
@@ -105,6 +108,90 @@ class LdapUserProviderTest extends TestCase {
 		$this->assertSame('requester', User::where('username', 'bob')->first()->role);
 
 		$this->assertSame(1, User::where('username', 'bob')->count());
+	}
+
+	public function testSameCommonNameGroupInAnotherOuGrantsNothing()
+	{
+		$this->directory->setGroups('carol', array(
+			'cn=helpdesk-admins,ou=delegated,dc=helpdesk,dc=local',
+			'cn=helpdesk-agents,ou=people,dc=helpdesk,dc=local',
+		));
+
+		$this->assertInstanceOf('User', $this->attempt('carol', 'password'));
+		$this->assertSame('requester', User::where('username', 'carol')->first()->role);
+	}
+
+	public function testDirectoryLoginRecordsLoginAndRoleVerificationTimes()
+	{
+		Carbon\Carbon::setTestNow(Carbon\Carbon::create(2014, 7, 1, 9, 0, 0));
+
+		try
+		{
+			$this->attempt('bob', 'password');
+		}
+		finally
+		{
+			Carbon\Carbon::setTestNow();
+		}
+
+		$row = User::where('username', 'bob')->first();
+		$this->assertTrue((bool) $row->active);
+		$this->assertSame('2014-07-01 09:00:00', (string) $row->last_login_at);
+		$this->assertSame('2014-07-01 09:00:00', (string) $row->role_verified_at);
+	}
+
+	public function testUserRemovedFromTheDirectoryIsDeactivatedOnTheirNextLogin()
+	{
+		$this->attempt('bob', 'password');
+		$this->directory->removeUser('bob');
+
+		$this->assertNull($this->attempt('bob', 'password'));
+
+		$row = User::where('username', 'bob')->first();
+		$this->assertFalse((bool) $row->active);
+		$this->assertSame('requester', $row->role);
+	}
+
+	public function testDisabledDirectoryAccountIsRefusedAndDeactivated()
+	{
+		$this->attempt('bob', 'password');
+		$this->directory->setDisabled('bob', true);
+
+		$this->assertNotInstanceOf('User', $this->attempt('bob', 'password'));
+
+		$row = User::where('username', 'bob')->first();
+		$this->assertFalse((bool) $row->active);
+		$this->assertSame('requester', $row->role);
+	}
+
+	public function testDirectoryOutageRefusesTheLoginButKeepsTheAccount()
+	{
+		$this->attempt('bob', 'password');
+		$this->directory->failWith(new Helpdesk\Auth\LdapUnavailableException('cannot connect to ldap'));
+
+		$this->assertNull($this->attempt('bob', 'password'));
+
+		$row = User::where('username', 'bob')->first();
+		$this->assertTrue((bool) $row->active);
+		$this->assertSame('agent', $row->role);
+	}
+
+	public function testDeactivatedDirectoryUserIsReactivatedByAValidLogin()
+	{
+		$this->attempt('bob', 'password');
+		User::where('username', 'bob')->update(array('active' => false));
+
+		$this->assertInstanceOf('User', $this->attempt('bob', 'password'));
+		$this->assertTrue((bool) User::where('username', 'bob')->first()->active);
+	}
+
+	public function testDeactivatedLocalUserCannotLogIn()
+	{
+		$local = $this->makeLocalUser('admin', 'break-glass');
+		$local->active = false;
+		$local->save();
+
+		$this->assertNotInstanceOf('User', $this->attempt('admin', 'break-glass'));
 	}
 
 	public function testUsernameTypedInOtherCaseReusesTheDirectorySpelling()

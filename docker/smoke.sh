@@ -28,6 +28,9 @@ request() {
 	echo "ok  $method $path -> $status"
 }
 
+# A Host header that is not configured is refused before any page renders.
+request GET /login 400 -H 'Host: evil.example'
+
 request GET /login 200
 token=$(sed -n 's/.*name="_token" type="hidden" value="\([^"]*\)".*/\1/p' "$BODY" | head -n 1)
 [ -n "$token" ] || token=$(sed -n 's/.*name="_token" value="\([^"]*\)".*/\1/p' "$BODY" | head -n 1)

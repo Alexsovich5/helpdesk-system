@@ -48,8 +48,50 @@ Log::useFiles(storage_path().'/logs/laravel.log');
 
 App::error(function(Exception $exception, $code)
 {
-	Log::error($exception);
+	// Class, message, file, line and a trace without call arguments, with
+	// configured passwords and the app key masked (PHP 5.6 traces include
+	// arguments, such as the password given to new PDO()).
+	// A failure to log must not stop the error page: Laravel would turn an
+	// exception thrown here into a 200 response.
+	try
+	{
+		Log::error(Helpdesk\Support\ExceptionLog::format($exception,
+			Helpdesk\Support\ExceptionLog::secretsFrom(App::make('config'))));
+	}
+	catch (Exception $e)
+	{
+		error_log('helpdesk: could not write the application log: '.get_class($e));
+	}
 });
+
+App::error(function(Illuminate\Session\TokenMismatchException $exception)
+{
+	return Response::make('The form had expired or did not come from this site. Go back, reload the page and try again.', 403);
+});
+
+App::error(function(UnexpectedValueException $exception)
+{
+	if (preg_match('/^(Untrusted|Invalid) Host/', $exception->getMessage())) return Response::make('Bad Request', 400);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Encryption Key and Application URL
+|--------------------------------------------------------------------------
+|
+| Refuse to run without a usable APP_KEY (the app container generates one
+| on first start, see docker/app/entrypoint.sh). Every generated URL, in
+| web requests and console commands alike, is rooted at app.url, which
+| must come from APP_URL in production.
+|
+*/
+
+Helpdesk\Security\AppKey::assertUsable(Config::get('app.key'));
+
+Config::set('app.url', Helpdesk\Http\HostGuard::rootUrl(App::environment(),
+	App::environment('production') ? getenv('APP_URL') : Config::get('app.url')));
+
+Helpdesk\Http\HostGuard::apply(App::make('url'), Config::get('app.url'));
 
 /*
 |--------------------------------------------------------------------------

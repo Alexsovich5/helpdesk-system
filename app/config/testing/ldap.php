@@ -6,11 +6,14 @@ return array(
 
 	'user_filter' => '(uid=%s)',
 
-	'role_map' => 'helpdesk-admins:admin,helpdesk-agents:agent',
+	'role_map' => array(
+		'cn=helpdesk-admins,ou=groups,dc=helpdesk,dc=local' => 'admin',
+		'cn=helpdesk-agents,ou=groups,dc=helpdesk,dc=local' => 'agent',
+	),
 
 	'fake_users' => array(
-		'alice' => array('password' => 'password', 'groups' => array('helpdesk-admins'), 'name' => 'Alice Admin', 'email' => 'alice@helpdesk.local'),
-		'bob'   => array('password' => 'password', 'groups' => array('helpdesk-agents'), 'name' => 'Bob Agent', 'email' => 'bob@helpdesk.local'),
+		'alice' => array('password' => 'password', 'groups' => array('cn=helpdesk-admins,ou=groups,dc=helpdesk,dc=local'), 'name' => 'Alice Admin', 'email' => 'alice@helpdesk.local'),
+		'bob'   => array('password' => 'password', 'groups' => array('cn=helpdesk-agents,ou=groups,dc=helpdesk,dc=local'), 'name' => 'Bob Agent', 'email' => 'bob@helpdesk.local'),
 		'carol' => array('password' => 'password', 'groups' => array(), 'name' => 'Carol Requester', 'email' => 'carol@helpdesk.local'),
 	),
 

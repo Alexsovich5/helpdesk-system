@@ -13,7 +13,15 @@
 
 App::before(function($request)
 {
-	//
+	// Links are rooted at app.url; a Host header that is not app.url's host
+	// or listed in app.trusted_hosts is refused.
+	$trusted = Helpdesk\Http\HostGuard::check($request, App::make('url'),
+		Config::get('app.url'), Config::get('app.trusted_hosts'));
+
+	if ( ! $trusted) return Response::make('Bad Request', 400);
+
+	// A user deactivated while signed in is signed out on their next request.
+	if (Auth::check() && ! Auth::user()->active) Auth::logout();
 });
 
 
@@ -129,15 +137,14 @@ Route::filter('guest', function()
 | CSRF Protection Filter
 |--------------------------------------------------------------------------
 |
-| The CSRF filter is responsible for protecting your application against
-| cross-site request forgery attacks. If this special token in a user
-| session does not match the one given in this request, we'll bail.
+| Applied to every POST, PUT, PATCH and DELETE request (app/routes.php).
+| The form field _token must be a string equal to the session's token.
 |
 */
 
 Route::filter('csrf', function()
 {
-	if (Session::token() != Input::get('_token'))
+	if ( ! Helpdesk\Security\CsrfToken::matches(Session::token(), Input::get('_token')))
 	{
 		throw new Illuminate\Session\TokenMismatchException;
 	}

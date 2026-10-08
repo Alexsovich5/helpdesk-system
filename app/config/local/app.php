@@ -7,12 +7,11 @@ return array(
 	| Application Debug Mode
 	|--------------------------------------------------------------------------
 	|
-	| When your application is in debug mode, detailed error messages with
-	| stack traces will be shown on every error that occurs within your
-	| application. If disabled, a simple generic error page is shown.
+	| Detailed error pages show stack traces and environment variables, so
+	| they are off unless APP_DEBUG=true is set for a development session.
 	|
 	*/
 
-	'debug' => true,
+	'debug' => filter_var(getenv('APP_DEBUG'), FILTER_VALIDATE_BOOLEAN),
 
 );

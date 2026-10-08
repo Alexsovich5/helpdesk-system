@@ -102,7 +102,7 @@ class AuthTest extends TestCase {
 	{
 		$this->be($this->makeUser('dana', 'requester'));
 
-		$response = $this->call('GET', '/logout');
+		$response = $this->post('/logout');
 
 		$this->assertSame(URL::to('login'), $response->headers->get('Location'));
 		$this->assertFalse(Auth::check());

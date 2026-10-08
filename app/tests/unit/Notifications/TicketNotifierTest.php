@@ -244,4 +244,93 @@ class TicketNotifierTest extends TestCase {
 		$this->assertContains(e($ticket->subject), $html);
 	}
 
+
+	protected function makeLdapAgent($username, Carbon $verifiedAt = null, $active = true)
+	{
+		$user = $this->makeUser($username, 'agent');
+		$user->source = 'ldap';
+		$user->role_verified_at = $verifiedAt;
+		$user->active = $active;
+		$user->save();
+
+		return $user;
+	}
+
+	public function testDeactivatedAgentReceivesNothing()
+	{
+		$this->otherAgent->active = false;
+		$this->otherAgent->save();
+
+		$this->newTicket();
+
+		$this->assertNotContains('dave@helpdesk.local', $this->recipients('emails.ticket_created'));
+		$this->assertContains('bob@helpdesk.local', $this->recipients('emails.ticket_created'));
+	}
+
+	public function testDirectoryAgentWithAStaleRoleReceivesNothing()
+	{
+		$this->makeLdapAgent('erin', Carbon::create(2014, 5, 31, 9, 0, 0));
+		$this->makeLdapAgent('fred', null);
+
+		$this->newTicket('urgent');
+		App::make('Helpdesk\Sla\SlaMonitor')->run(Carbon::create(2014, 7, 1, 9, 31, 0));
+
+		foreach (array('emails.ticket_created', 'emails.ticket_sla') as $view)
+		{
+			$this->assertNotContains('erin@helpdesk.local', $this->recipients($view));
+			$this->assertNotContains('fred@helpdesk.local', $this->recipients($view));
+		}
+	}
+
+	public function testDirectoryAgentVerifiedWithinTheWindowIsMailed()
+	{
+		$this->makeLdapAgent('erin', Carbon::create(2014, 6, 2, 9, 0, 0));
+
+		$this->newTicket();
+
+		$this->assertContains('erin@helpdesk.local', $this->recipients('emails.ticket_created'));
+	}
+
+	public function testVerificationWindowComesFromConfig()
+	{
+		Config::set('ldap.role_max_age_days', 7);
+		$this->makeLdapAgent('erin', Carbon::create(2014, 6, 20, 9, 0, 0));
+
+		$this->newTicket();
+
+		$this->assertNotContains('erin@helpdesk.local', $this->recipients('emails.ticket_created'));
+	}
+
+	public function testIneligibleAssigneeIsSkippedAndTheQueueIsMailedInstead()
+	{
+		$erin = $this->makeLdapAgent('erin', Carbon::create(2014, 6, 30, 9, 0, 0));
+		$ticket = $this->newTicket();
+		$this->service->assign($ticket, $erin, $this->admin);
+
+		$erin->active = false;
+		$erin->save();
+		$ticket = Ticket::find($ticket->id);
+		$this->sent = array();
+
+		$this->service->comment($ticket, $this->requester, 'Still broken.');
+
+		$this->assertEquals(array(
+			'alice@helpdesk.local',
+			'bob@helpdesk.local',
+			'dave@helpdesk.local',
+		), $this->recipients('emails.ticket_commented'));
+	}
+
+	public function testDeactivatedRequesterIsStillMailedAboutTheirTicket()
+	{
+		$ticket = $this->newTicket();
+		$this->requester->active = false;
+		$this->requester->save();
+		$this->sent = array();
+
+		$this->service->transition(Ticket::find($ticket->id), 'open', $this->agent);
+
+		$this->assertEquals(array('carol@helpdesk.local'), $this->recipients('emails.ticket_status'));
+	}
+
 }

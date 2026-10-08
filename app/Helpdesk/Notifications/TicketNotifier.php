@@ -1,5 +1,6 @@
 <?php namespace Helpdesk\Notifications;
 
+use Carbon\Carbon;
 use Illuminate\Container\Container;
 use Illuminate\Events\Dispatcher;
 use Ticket;
@@ -19,6 +20,13 @@ use User;
  *
  * Apart from the creation acknowledgement, the user who caused the event
  * is never mailed about it.
+ *
+ * "Agent" recipients (the assignee and the agent list) are limited to
+ * active agents and admins whose role is local or was confirmed by the
+ * directory within ldap.role_max_age_days, so people who left the help desk
+ * group or were disabled stop receiving ticket contents. An assignee who no
+ * longer qualifies is replaced by the agent list. Requesters are mailed
+ * about their own tickets as before.
  *
  * The mailer is looked up from the container on every send so a mailer
  * bound after boot (tests) is the one used.
@@ -51,7 +59,7 @@ class TicketNotifier {
 
 	public function onAssigned(Ticket $ticket, User $assignee, User $actor)
 	{
-		$recipients = $this->without(array($assignee), $actor);
+		$recipients = $this->without($this->eligible(array($assignee)), $actor);
 
 		$this->send('emails.ticket_assigned', $ticket, $recipients, 'Assigned to you', array(
 			'actor' => $actor,
@@ -62,7 +70,7 @@ class TicketNotifier {
 	{
 		if ($comment->is_internal)
 		{
-			$recipients = $ticket->assignee ? array($ticket->assignee) : array();
+			$recipients = $this->eligible(array($ticket->assignee));
 		}
 		elseif ($actor->isAgent() && ! $ticket->isOwnedBy($actor))
 		{
@@ -125,12 +133,34 @@ class TicketNotifier {
 
 	protected function agents()
 	{
-		return User::whereIn('role', array('agent', 'admin'))->orderBy('id')->get()->all();
+		return User::notifiableStaff(Carbon::now(), $this->maxAgeDays())->orderBy('id')->get()->all();
 	}
 
 	protected function assigneeOrAgents(Ticket $ticket)
 	{
-		return $ticket->assignee ? array($ticket->assignee) : $this->agents();
+		$assignee = $this->eligible(array($ticket->assignee));
+
+		return $assignee ?: $this->agents();
+	}
+
+	/**
+	 * @param  array  $users  User or null entries
+	 * @return User[] the ones who may receive staff e-mail
+	 */
+	protected function eligible(array $users)
+	{
+		$now = Carbon::now();
+		$days = $this->maxAgeDays();
+
+		return array_values(array_filter($users, function($user) use ($now, $days)
+		{
+			return $user && $user->isNotifiableStaff($now, $days);
+		}));
+	}
+
+	protected function maxAgeDays()
+	{
+		return (int) $this->app['config']->get('ldap.role_max_age_days', 30);
 	}
 
 	protected function without(array $users, User $actor)
