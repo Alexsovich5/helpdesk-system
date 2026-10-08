@@ -21,3 +21,4 @@ Route::get('tickets/{number}', array('before' => 'auth|ticket.access', 'uses' =>
 Route::post('tickets/{number}/comments', array('before' => 'auth|ticket.access|csrf', 'uses' => 'CommentController@store'));
 Route::post('tickets/{number}/assign', array('before' => 'role:agent|csrf', 'uses' => 'TicketController@assign'));
 Route::post('tickets/{number}/status', array('before' => 'auth|ticket.access|csrf', 'uses' => 'TicketController@status'));
+Route::post('tickets/{number}/priority', array('before' => 'role:agent|csrf', 'uses' => 'TicketController@priority'));

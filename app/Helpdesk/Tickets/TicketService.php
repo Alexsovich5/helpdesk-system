@@ -1,6 +1,7 @@
 <?php namespace Helpdesk\Tickets;
 
 use Carbon\Carbon;
+use Helpdesk\Sla\SlaCalculator;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Events\Dispatcher;
 use InvalidArgumentException;
@@ -19,6 +20,7 @@ use User;
  *   ticket.assigned   (Ticket $ticket, User $assignee, User $actor)
  *   ticket.commented  (Ticket $ticket, TicketComment $comment, User $actor)
  *   ticket.status     (Ticket $ticket, string $from, string $to, User $actor)
+ *   ticket.priority   (Ticket $ticket, string $from, string $to, User $actor)
  */
 class TicketService {
 
@@ -26,10 +28,13 @@ class TicketService {
 
 	protected $events;
 
-	public function __construct(DatabaseManager $db, Dispatcher $events)
+	protected $sla;
+
+	public function __construct(DatabaseManager $db, Dispatcher $events, SlaCalculator $sla)
 	{
 		$this->db = $db;
 		$this->events = $events;
+		$this->sla = $sla;
 	}
 
 	/**
@@ -49,6 +54,10 @@ class TicketService {
 			$ticket->save();
 
 			$ticket->number = TicketNumber::fromId($ticket->id);
+			foreach ($this->sla->dueDates($ticket) as $column => $due)
+			{
+				$ticket->$column = $due;
+			}
 			$ticket->save();
 
 			$this->record($ticket, $requester, 'created', null, 'new');
@@ -149,7 +158,11 @@ class TicketService {
 			$now = Carbon::now();
 
 			$ticket->status = $to;
-			if ($to === 'resolved') $ticket->resolved_at = $now;
+			if ($to === 'resolved')
+			{
+				$ticket->resolved_at = $now;
+				$ticket->sla_state = $this->sla->state($ticket, $now);
+			}
 			if ($from === 'resolved' && $to === 'open') $ticket->resolved_at = null;
 			if ($to === 'closed') $ticket->closed_at = $now;
 			$ticket->save();
@@ -158,6 +171,39 @@ class TicketService {
 		});
 
 		$this->events->fire('ticket.status', array($ticket, $from, $to, $actor));
+
+		return $ticket;
+	}
+
+	/**
+	 * Change the priority and recompute both due dates from the creation
+	 * time. Setting the current priority again changes nothing.
+	 *
+	 * @throws InvalidArgumentException  unknown priority
+	 */
+	public function changePriority(Ticket $ticket, $priority, User $actor)
+	{
+		if ( ! in_array($priority, Ticket::$priorities, true))
+		{
+			throw new InvalidArgumentException("Unknown priority [$priority].");
+		}
+
+		$from = $ticket->priority;
+		if ($from === $priority) return $ticket;
+
+		$this->db->transaction(function() use ($ticket, $from, $priority, $actor)
+		{
+			$ticket->priority = $priority;
+			foreach ($this->sla->dueDates($ticket) as $column => $due)
+			{
+				$ticket->$column = $due;
+			}
+			$ticket->save();
+
+			$this->record($ticket, $actor, 'priority', $from, $priority);
+		});
+
+		$this->events->fire('ticket.priority', array($ticket, $from, $priority, $actor));
 
 		return $ticket;
 	}

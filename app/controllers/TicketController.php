@@ -116,11 +116,12 @@ class TicketController extends BaseController {
 		$ticket->load('category', 'requester', 'assignee', 'events.user', 'comments.author');
 
 		return View::make('tickets.show', array(
-			'ticket'   => $ticket,
-			'user'     => $user,
-			'timeline' => $this->timeline($ticket, $user),
-			'agents'   => $user->isAgent() ? $this->agentOptions() : array(),
-			'targets'  => StatusMachine::targets($ticket->status),
+			'ticket'     => $ticket,
+			'user'       => $user,
+			'timeline'   => $this->timeline($ticket, $user),
+			'agents'     => $user->isAgent() ? $this->agentOptions() : array(),
+			'targets'    => StatusMachine::targets($ticket->status),
+			'priorities' => Ticket::$priorities,
 		));
 	}
 
@@ -159,6 +160,22 @@ class TicketController extends BaseController {
 		}
 
 		return Redirect::to('tickets/'.$ticket->number)->with('status', "Status changed to $to.");
+	}
+
+	public function priority($number)
+	{
+		$ticket = $this->findOrFail($number);
+		$priority = (string) Input::get('priority');
+
+		if ( ! in_array($priority, Ticket::$priorities, true))
+		{
+			return Redirect::to('tickets/'.$ticket->number)
+				->withErrors(array('priority' => 'Choose one of: '.implode(', ', Ticket::$priorities).'.'));
+		}
+
+		$this->tickets->changePriority($ticket, $priority, Auth::user());
+
+		return Redirect::to('tickets/'.$ticket->number)->with('status', "Priority changed to $priority.");
 	}
 
 	/**

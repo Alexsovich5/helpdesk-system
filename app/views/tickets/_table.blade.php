@@ -8,6 +8,8 @@
 				<th>Priority</th>
 				<th>Requester</th>
 				<th>Assignee</th>
+				<th>SLA</th>
+				<th>Resolution due</th>
 				<th>Created</th>
 			</tr>
 		</thead>
@@ -20,6 +22,8 @@
 				<td>{{{ $ticket->priority }}}</td>
 				<td>{{{ $ticket->requester ? $ticket->requester->name : '' }}}</td>
 				<td>{{{ $ticket->assignee ? $ticket->assignee->name : '-' }}}</td>
+				<td>@include('tickets._sla_badge', array('state' => $ticket->sla_state))</td>
+				<td>{{{ $ticket->resolution_due_at ? $ticket->resolution_due_at->format('Y-m-d H:i') : '-' }}}</td>
 				<td>{{{ $ticket->created_at->format('Y-m-d H:i') }}}</td>
 			</tr>
 			@endforeach

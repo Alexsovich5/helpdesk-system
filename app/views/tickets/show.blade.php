@@ -28,6 +28,9 @@
 					<dt>Requester</dt><dd>{{{ $ticket->requester->name }}}</dd>
 					<dt>Assignee</dt><dd>{{{ $ticket->assignee ? $ticket->assignee->name : 'Unassigned' }}}</dd>
 					<dt>Created</dt><dd>{{{ $ticket->created_at->format('Y-m-d H:i') }}}</dd>
+					<dt>SLA</dt><dd>@include('tickets._sla_badge', array('state' => $ticket->sla_state))</dd>
+					<dt>Response due</dt><dd>{{{ $ticket->response_due_at ? $ticket->response_due_at->format('Y-m-d H:i') : '-' }}}@if ($ticket->first_responded_at) <span class="text-muted small">(answered {{{ $ticket->first_responded_at->format('Y-m-d H:i') }}})</span>@endif</dd>
+					<dt>Resolution due</dt><dd>{{{ $ticket->resolution_due_at ? $ticket->resolution_due_at->format('Y-m-d H:i') : '-' }}}@if ($ticket->resolved_at) <span class="text-muted small">(resolved {{{ $ticket->resolved_at->format('Y-m-d H:i') }}})</span>@endif</dd>
 				</dl>
 				<div class="ticket-description">{{ nl2br(e($ticket->description)) }}</div>
 			</div>
@@ -105,6 +108,21 @@
 				{{ Form::close() }}
 			</div>
 		</div>
+
+		@if ($ticket->status !== 'closed')
+		<div class="panel panel-default">
+			<div class="panel-heading"><h2 class="panel-title">Priority</h2></div>
+			<div class="panel-body">
+				{{ Form::open(array('url' => 'tickets/'.$ticket->number.'/priority', 'role' => 'form')) }}
+					<div class="form-group">
+						{{ Form::label('priority', 'Priority', array('class' => 'sr-only')) }}
+						{{ Form::select('priority', array_combine($priorities, $priorities), $ticket->priority, array('class' => 'form-control')) }}
+					</div>
+					<button type="submit" class="btn btn-default btn-block">Change priority</button>
+				{{ Form::close() }}
+			</div>
+		</div>
+		@endif
 
 		@if (count($targets))
 		<div class="panel panel-default">
