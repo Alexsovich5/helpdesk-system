@@ -65,7 +65,7 @@ compliance.
 ```
                  browser (desktop / phone)
                           |
-                          v  HTTP :8080
+                          v  HTTP :20680
   +---------------------------------------------------------+
   | app  (php:5.6-apache, Laravel 4.2)                      |
   |  routes.php -> filters (auth, role) -> controllers      |

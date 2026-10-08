@@ -1,0 +1,3 @@
+CREATE DATABASE IF NOT EXISTS helpdesk_test CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+GRANT ALL PRIVILEGES ON helpdesk_test.* TO 'helpdesk'@'%';
+FLUSH PRIVILEGES;

@@ -44,9 +44,9 @@ service, and a `make test` that runs a unit suite and an integration suite from 
   deviation in SPEC §7; fallback `-o Acquire::AllowInsecureRepositories=true` + `--allow-unauthenticated`);
   install `libmcrypt-dev libldap2-dev unzip git mysql-client`; `docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu` (arch-aware);
   `docker-php-ext-install mcrypt pdo_mysql ldap`; `a2enmod rewrite`; DocumentRoot `/var/www/html/public`;
-  Composer 2.2.24 phar at `/usr/local/bin/composer`; `COPY composer.json composer.lock` then `composer install --prefer-dist --no-scripts`, then copy the source.
+  Composer 2.2.24 phar at `/usr/local/bin/composer`; `COPY composer.json composer.lock` then `composer install --prefer-dist --no-scripts --no-autoloader`, then copy the source and run `composer dump-autoload --optimize` (the classmap directories under `app/` do not exist before the source copy, and Composer aborts on a missing classmap path).
 - `docker/apache/000-default.conf`, `docker/php/php.ini` (`date.timezone=UTC`).
-- `docker-compose.yml`: `app` (build ., port 8080:80, env `APP_ENV=local`, `DB_*` pointing at database `helpdesk`, depends on `db`),
+- `docker-compose.yml`: top-level `name: helpdesk-system`; default network on subnet `172.46.0.0/24`; `app` (build ., image `helpdesk-system:app`, port 20680:80 — host port and subnet set to this project's lane on a shared Docker host instead of 8080, env `APP_ENV=local`, `DB_*` pointing at database `helpdesk`, depends on `db`),
   `db` (`mysql:5.6`, `platform: linux/amd64`, env `MYSQL_ROOT_PASSWORD=root`, `MYSQL_DATABASE=helpdesk`, `MYSQL_USER=helpdesk`, `MYSQL_PASSWORD=helpdesk`,
   named volume `db-data`, `./docker/mysql/init:/docker-entrypoint-initdb.d:ro`, healthcheck `mysqladmin ping`),
   `test` service (profile `test`) reusing the app image, env `DB_HOST=db`, `DB_DATABASE=helpdesk`, `DB_TEST_DATABASE=helpdesk_test`,
@@ -59,14 +59,17 @@ service, and a `make test` that runs a unit suite and an integration suite from 
 - `Makefile` targets: `build`, `up`, `down`, `reset-db` (`docker compose down -v`), `install` (composer install in container), `smoke`, `shell`, and:
   ```
   test: test-unit test-integration
-  test-unit:
-  	docker compose run --rm test vendor/bin/phpunit --testsuite unit
-  	docker compose run --rm test vendor/bin/phpunit --testsuite functional
-  test-integration:
+  test-unit: build
+  	docker compose run --rm --no-deps test vendor/bin/phpunit --testsuite unit
+  	docker compose run --rm --no-deps test vendor/bin/phpunit --testsuite functional
+  test-integration: build
   	docker compose up -d --wait db
   	docker compose run --rm test vendor/bin/phpunit --testsuite integration
   ```
-  (PHPUnit 4.2 `--testsuite` takes a single name; the environment is chosen by the test base class, not `APP_ENV`.)
+  (PHPUnit 4.2 `--testsuite` takes a single name; the environment is chosen by the test base class, not `APP_ENV`.
+  The `test` service runs the code baked into the `helpdesk-system:app` image, with no bind mount, so the test targets depend on
+  `build`; the rebuild is a cached layer copy plus `dump-autoload`, which also keeps the classmap current when later tasks add classes.
+  T1's `smoke` target is `up` plus `curl -f http://localhost:20680/`; T15 replaces it with `docker/smoke.sh`.)
 - `phpunit.xml`: bootstrap `bootstrap/autoload.php`, suites `unit` (`app/tests/unit`), `functional` (`app/tests/functional`), `integration` (`app/tests/integration`).
 - `app/config/integration/database.php`: `default => mysql`, MySQL host/user/password via `DB_*` env, and
   `'database' => getenv('DB_TEST_DATABASE') ?: 'helpdesk_test'`, so integration tests never touch the demo database `helpdesk`.
@@ -104,7 +107,7 @@ Manifest (verified with `tools/check_period.py`: 47 checked, 0 problems):
 ```
 
 **Tests to write first:**
-- `EnvironmentTest`: `App::environment() === 'testing'`; `Illuminate\Foundation\Application::VERSION` starts with `4.2.`; `PHP_VERSION` starts with `5.6.`; `extension_loaded('mcrypt')`, `'ldap'`, `'pdo_mysql'` are all true; `Route::filtersEnabled()` is true; `GET /` returns 200 (no auth filter yet).
+- `EnvironmentTest`: `App::environment() === 'testing'`; `Illuminate\Foundation\Application::VERSION` starts with `4.2.`; `PHP_VERSION` starts with `5.6.`; `extension_loaded('mcrypt')`, `'ldap'`, `'pdo_mysql'` are all true; route filters run (a route registered with a `before` filter that returns a 418 response answers 418 — Laravel 4.2's `Router` has `enableFilters()`/`disableFilters()` but no `filtersEnabled()` getter); `GET /` returns 200 (no auth filter yet).
 - `MysqlConnectionTest` (`@group integration`): `App::environment() === 'integration'`; `DB::connection()->getDriverName() === 'mysql'`;
   `DB::select('SELECT VERSION() AS v')[0]->v` starts with `5.6`; `DB::connection()->getDatabaseName() === 'helpdesk_test'`.
 

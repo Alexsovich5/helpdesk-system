@@ -1,0 +1,5 @@
+/vendor
+/app/storage/**
+!/app/storage/**/
+!/app/storage/**/.gitignore
+.DS_Store

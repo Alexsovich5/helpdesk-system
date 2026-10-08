@@ -1,0 +1,57 @@
+name: helpdesk-system
+
+services:
+  app:
+    build: .
+    image: helpdesk-system:app
+    ports:
+      - "20680:80"
+    environment:
+      APP_ENV: local
+      DB_HOST: db
+      DB_DATABASE: helpdesk
+      DB_USERNAME: helpdesk
+      DB_PASSWORD: helpdesk
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:5.6
+    platform: linux/amd64
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: helpdesk
+      MYSQL_USER: helpdesk
+      MYSQL_PASSWORD: helpdesk
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  # Runs PHPUnit. Unit and functional suites use sqlite in memory;
+  # the integration suite uses the helpdesk_test database on db.
+  test:
+    image: helpdesk-system:app
+    profiles: ["test"]
+    environment:
+      DB_HOST: db
+      DB_DATABASE: helpdesk
+      DB_TEST_DATABASE: helpdesk_test
+      DB_USERNAME: helpdesk
+      DB_PASSWORD: helpdesk
+      APP_KEY: LocalSampleKeyForHelpdeskStack32
+
+volumes:
+  db-data:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.46.0.0/24
