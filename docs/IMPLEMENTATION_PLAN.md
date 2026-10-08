@@ -454,6 +454,8 @@ and a curl smoke test logging in through the LDAP simulator.
 
 **Files:**
 - modify `README.md`: title "IT Help Desk Ticketing System"; one-paragraph description; "Personal project built on the 2014-era stack (PHP 5.6, Laravel 4.2, MySQL 5.6, Bootstrap 3.2, jQuery 1.11)"; **Implemented** bullets = SPEC §2 features 1–8, each naming its code and test; **Not implemented / known limitations** = SPEC §3 and §11, including: "Active Directory is simulated with an OpenLDAP slapd container (`docker/ldap`); the SMTP relay is simulated by a Python smtpd sink (`docker/smtp-sink`); neither has been run against a real directory or mail server"; Built with = pinned versions from `composer.json`; Running it = `docker compose up` + `make demo && make smoke`; Tests = `make test` plus one sentence on coverage; Layout = output of `git ls-files | tree --fromfile` (or an equivalent script run in the container), pasted verbatim; the template's rules comment removed.
+- add `docker/layout-tree.php`: renders `git ls-files` output as a tree (`git ls-files | php docker/layout-tree.php`); ReadmeTest includes it to rebuild the expected Layout block.
+- modify `Makefile`: `test-unit` mounts the checkout's `.git` read-only at `/var/www/html/.git` for the `unit` suite, so the Layout check runs instead of being skipped (the image build excludes `.git`).
 - Order of work: write `ReadmeTest.php` and the README, `git add -A`, then generate the Layout tree from `git ls-files` (so it includes `ReadmeTest.php`), paste it, `git add README.md`, run the tests, commit.
 - No employer, role, dates, metrics, badges, or "Status: Complete".
 

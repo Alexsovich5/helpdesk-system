@@ -46,7 +46,7 @@ mail-clean:
 test: test-unit test-integration
 
 test-unit: build
-	docker compose run --rm --no-deps test vendor/bin/phpunit --testsuite unit
+	docker compose run --rm --no-deps -v "$(CURDIR)/.git:/var/www/html/.git:ro" test vendor/bin/phpunit --testsuite unit
 	docker compose run --rm --no-deps test vendor/bin/phpunit --testsuite functional
 
 test-integration: build
