@@ -6,11 +6,18 @@
 |--------------------------------------------------------------------------
 */
 
+Route::pattern('number', 'HD-[0-9]+');
+
 Route::get('login', array('before' => 'guest', 'uses' => 'AuthController@getLogin'));
 Route::post('login', array('before' => 'guest|csrf', 'uses' => 'AuthController@postLogin'));
 
-Route::group(array('before' => 'auth'), function()
-{
-	Route::get('logout', 'AuthController@getLogout');
-	Route::get('/', 'HomeController@getIndex');
-});
+Route::get('logout', array('before' => 'auth', 'uses' => 'AuthController@getLogout'));
+Route::get('/', array('before' => 'auth', 'uses' => 'HomeController@getIndex'));
+
+Route::get('tickets', array('before' => 'auth', 'uses' => 'TicketController@index'));
+Route::get('tickets/create', array('before' => 'auth', 'uses' => 'TicketController@create'));
+Route::post('tickets', array('before' => 'auth|csrf', 'uses' => 'TicketController@store'));
+Route::get('tickets/{number}', array('before' => 'auth|ticket.access', 'uses' => 'TicketController@show'));
+Route::post('tickets/{number}/comments', array('before' => 'auth|ticket.access|csrf', 'uses' => 'CommentController@store'));
+Route::post('tickets/{number}/assign', array('before' => 'role:agent|csrf', 'uses' => 'TicketController@assign'));
+Route::post('tickets/{number}/status', array('before' => 'auth|ticket.access|csrf', 'uses' => 'TicketController@status'));

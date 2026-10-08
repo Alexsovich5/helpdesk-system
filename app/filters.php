@@ -80,6 +80,36 @@ Route::filter('role', function($route, $request, $role)
 
 /*
 |--------------------------------------------------------------------------
+| Ticket Access Filter
+|--------------------------------------------------------------------------
+|
+| For routes with a {number} parameter: agents may open any ticket, other
+| users only the tickets they raised. Unknown numbers get a 404.
+|
+*/
+
+Route::filter('ticket.access', function($route)
+{
+	if (Auth::guest())
+	{
+		return Redirect::guest('login');
+	}
+
+	$ticket = Ticket::findByNumber($route->getParameter('number'));
+
+	if (is_null($ticket))
+	{
+		return Response::make('Not Found', 404);
+	}
+
+	if ( ! Auth::user()->isAgent() && ! $ticket->isOwnedBy(Auth::user()))
+	{
+		return Response::make('Forbidden', 403);
+	}
+});
+
+/*
+|--------------------------------------------------------------------------
 | Guest Filter
 |--------------------------------------------------------------------------
 |
