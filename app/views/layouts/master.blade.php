@@ -29,6 +29,7 @@
 					<li class="{{ Request::is('kb') || Request::is('kb/*') ? 'active' : '' }}"><a href="{{ URL::to('kb') }}">Knowledge base</a></li>
 					@if (Auth::user()->isAgent())
 					<li class="{{ Request::is('assets') || Request::is('assets/*') ? 'active' : '' }}"><a href="{{ URL::to('assets') }}">Assets</a></li>
+					<li class="{{ Request::is('reports') || Request::is('reports/*') ? 'active' : '' }}"><a href="{{ URL::to('reports') }}">Reports</a></li>
 					@endif
 				</ul>
 				<ul class="nav navbar-nav navbar-right">

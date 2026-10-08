@@ -42,3 +42,6 @@ Route::get('assets/{id}', array('before' => 'role:agent', 'uses' => 'AssetContro
 Route::get('assets/{id}/edit', array('before' => 'role:admin', 'uses' => 'AssetController@edit'));
 Route::put('assets/{id}', array('before' => 'role:admin|csrf', 'uses' => 'AssetController@update'));
 Route::delete('assets/{id}', array('before' => 'role:admin|csrf', 'uses' => 'AssetController@destroy'));
+
+Route::get('reports', array('before' => 'role:agent', 'uses' => 'ReportController@index'));
+Route::get('reports/export.csv', array('before' => 'role:agent', 'uses' => 'ReportController@export'));

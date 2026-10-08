@@ -20,3 +20,27 @@ body {
 		margin-top: 6px;
 	}
 }
+
+.report-figure {
+	font-size: 28px;
+	margin-bottom: 4px;
+}
+
+.report-breakdown th {
+	font-weight: normal;
+	text-transform: capitalize;
+}
+
+.report-breakdown .report-bar {
+	width: 50%;
+}
+
+.report-breakdown .progress {
+	margin-bottom: 0;
+}
+
+@media (min-width: 768px) {
+	.report-range-submit {
+		margin-top: 25px;
+	}
+}
