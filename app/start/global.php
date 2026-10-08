@@ -79,3 +79,15 @@ App::down(function()
 */
 
 require app_path().'/filters.php';
+
+/*
+|--------------------------------------------------------------------------
+| Ticket Notifications
+|--------------------------------------------------------------------------
+|
+| E-mail the people involved when a ticket is created, assigned, commented
+| on, changes status or moves into SLA warning or breach.
+|
+*/
+
+Event::subscribe('Helpdesk\Notifications\TicketNotifier');

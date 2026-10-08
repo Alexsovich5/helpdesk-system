@@ -298,6 +298,8 @@ events once per state change, and run the check every minute.
 **Files:**
 - create `app/Helpdesk/Notifications/TicketNotifier.php` (event subscriber: `subscribe($events)` for `ticket.created|assigned|commented|status|sla`; recipients as in the SPEC; never mails the actor about their own action; internal comments notify agents only), views `app/views/emails/ticket_created.blade.php`, `ticket_assigned`, `ticket_commented`, `ticket_status`, `ticket_sla` (plain HTML, link to ticket).
 - modify `app/start/global.php` (`Event::subscribe('Helpdesk\Notifications\TicketNotifier')`), `app/config/mail.php` (`MAIL_HOST`, `MAIL_PORT`, `from`).
+- create `app/config/integration/mail.php` (`pretend => true`): the integration suite already creates tickets (T8) and has no SMTP server until T10, which switches this file to `pretend => false`.
+- Recipient rule detail: the creation acknowledgement goes to the requester even though they are the actor; every other mail skips the actor. Internal comments go to the assignee only.
 
 **Tests to write first:** `app/tests/unit/Notifications/TicketNotifierTest.php` with a Mockery mock of `Illuminate\Mail\Mailer` bound in the IoC: created → requester + all agents; assigned → assignee only; a public comment by an agent → requester; a comment by the requester → assignee; an internal comment → no requester mail; SLA breach on an unassigned ticket → all agents; the subject contains the ticket number.
 
@@ -318,8 +320,8 @@ creation, assignment, comments, status changes and SLA alerts.
 **Goal:** a local SMTP stand-in that captures mail to files, and an integration test proving real SMTP delivery.
 
 **Files:**
-- create `docker/smtp-sink/Dockerfile` (`FROM python:2.7`), `docker/smtp-sink/sink.py` (subclass `smtpd.SMTPServer`; `process_message` writes `/var/mail-sink/<timestamp>-<n>.eml`; listens on 1025), `app/config/integration/mail.php` (`pretend => false`, host `smtp-sink`), `app/tests/integration/MailDeliveryTest.php` (extends `IntegrationTestCase`; gets its category and `carol` user with `firstOrCreate` keyed by name/`username`).
-- modify `docker-compose.yml` (service `smtp-sink`, named volume `mail-sink` mounted in `smtp-sink`, `app`, `scheduler` and test runs; `test` env adds `MAIL_HOST=smtp-sink`, `MAIL_PORT=1025`), `Makefile` (`mail-clean` target; `test-integration` waits for `smtp-sink`).
+- create `docker/smtp-sink/Dockerfile` (`FROM python:2.7`), `docker/smtp-sink/sink.py` (subclass `smtpd.SMTPServer`; `process_message` writes `/var/mail-sink/<timestamp>-<n>.eml`; listens on 1025), `app/tests/integration/MailDeliveryTest.php` (extends `IntegrationTestCase`; gets its category and `carol` user with `firstOrCreate` keyed by name/`username`).
+- modify `app/config/integration/mail.php` (`pretend => false`, host `smtp-sink`) (created in T9 with `pretend => true`), `docker-compose.yml` (service `smtp-sink`, named volume `mail-sink` mounted in `smtp-sink`, `app`, `scheduler` and test runs; `test` env adds `MAIL_HOST=smtp-sink`, `MAIL_PORT=1025`), `Makefile` (`mail-clean` target; `test-integration` waits for `smtp-sink`).
 
 **Tests to write first:** `MailDeliveryTest`: empty the sink dir; create a ticket via `TicketService` as `carol`; within 5 s a `.eml` exists whose `To:` contains carol's address and whose `Subject:` contains the number of the ticket just created.
 
