@@ -219,7 +219,7 @@ Two MySQL databases on the one `db` server keep test data and demo data apart:
 
 | Database | Used by | Lifecycle |
 |---|---|---|
-| `helpdesk` | `app`, `scheduler`, `make demo`, `make smoke` | `make demo` runs `migrate:refresh --seed` (local env → `DemoSeeder`), so it is reset on every demo run |
+| `helpdesk` | `app`, `scheduler`, `make demo`, `make smoke` | `make demo` runs `migrate` then `migrate:refresh --seed` (local env → `DemoSeeder`), so it is reset on every demo run |
 | `helpdesk_test` | integration suite only (`IntegrationTestCase`) | created by `docker/mysql/init/01-test-db.sql`; each test runs in a rolled-back transaction; the one committing test (`MigrateAndSeedTest`) leaves an empty migrated schema behind |
 
 Environment of the compose `test` service (the only service that runs PHPUnit): `DB_HOST=db`, `DB_DATABASE=helpdesk`,

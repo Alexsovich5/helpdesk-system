@@ -1,4 +1,4 @@
-.PHONY: assets build up down reset-db install smoke shell mail-clean test test-unit test-integration
+.PHONY: assets build up down reset-db install demo smoke shell mail-clean test test-unit test-integration
 
 build:
 	docker compose build app ldap smtp-sink
@@ -12,7 +12,15 @@ assets: build
 		cp -r vendor/twbs/bootstrap/dist /out/bootstrap
 
 up:
-	docker compose up -d --wait app
+	docker compose up -d --wait app ldap
+
+# Rebuilds the helpdesk database from scratch with the demo data (local env
+# runs DemoSeeder), so it can be run again at any time. The plain migrate
+# first creates the migrations table on a new database, which
+# migrate:refresh needs.
+demo: up
+	docker compose exec -T app php artisan migrate --force
+	docker compose exec -T app php artisan migrate:refresh --seed --force
 
 down:
 	docker compose down
@@ -23,8 +31,10 @@ reset-db:
 install:
 	docker compose run --rm --no-deps test composer install --prefer-dist --no-interaction
 
+# Signs in through the LDAP simulator and opens the ticket list and reports
+# over HTTP; expects the demo data (make demo).
 smoke: up
-	curl -fsS -o /dev/null -w "GET / -> %{http_code}\n" http://localhost:20680/
+	docker compose run --rm --no-deps -v "$(CURDIR)/docker/smoke.sh:/smoke.sh:ro" test sh /smoke.sh http://app
 
 shell:
 	docker compose run --rm test bash
@@ -42,3 +52,5 @@ test-unit: build
 test-integration: build
 	docker compose up -d --wait db ldap smtp-sink
 	docker compose run --rm test vendor/bin/phpunit --testsuite integration
+	$(MAKE) demo
+	$(MAKE) smoke

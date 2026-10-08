@@ -15,6 +15,9 @@ class DatabaseSeeder extends Seeder {
 		$this->call('CategoryTableSeeder');
 		$this->call('SlaPolicyTableSeeder');
 		$this->call('KbTableSeeder');
+
+		// Demo users, assets and tickets for the local stack only (make demo).
+		if (App::environment('local')) $this->call('DemoSeeder');
 	}
 
 }
