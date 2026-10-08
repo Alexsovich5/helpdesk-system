@@ -1,0 +1,22 @@
+body {
+	padding-bottom: 40px;
+}
+
+.navbar-static-top {
+	margin-bottom: 24px;
+}
+
+.login-panel {
+	margin-top: 40px;
+}
+
+.login-panel .alert ul {
+	margin-bottom: 0;
+}
+
+@media (max-width: 767px) {
+	.page-header h1 small {
+		display: block;
+		margin-top: 6px;
+	}
+}

@@ -1,7 +1,15 @@
-.PHONY: build up down reset-db install smoke shell test test-unit test-integration
+.PHONY: assets build up down reset-db install smoke shell test test-unit test-integration
 
 build:
 	docker compose build app
+
+# The image copies vendor/twbs/bootstrap/dist to public/vendor/bootstrap while
+# it builds; this copies the same files out to the checkout's public/vendor.
+assets: build
+	rm -rf public/vendor/bootstrap
+	mkdir -p public/vendor
+	docker compose run --rm --no-deps -v "$(CURDIR)/public/vendor:/out" test \
+		cp -r vendor/twbs/bootstrap/dist /out/bootstrap
 
 up:
 	docker compose up -d --wait app

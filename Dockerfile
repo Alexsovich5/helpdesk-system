@@ -28,4 +28,6 @@ RUN for i in 1 2 3; do composer install --prefer-dist --no-scripts --no-autoload
 
 COPY . ./
 RUN composer dump-autoload --optimize \
+ && rm -rf public/vendor/bootstrap && mkdir -p public/vendor \
+ && cp -r vendor/twbs/bootstrap/dist public/vendor/bootstrap \
  && chown -R www-data:www-data app/storage

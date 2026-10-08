@@ -43,11 +43,12 @@ class EnvironmentTest extends TestCase {
 		$this->assertSame('blocked by filter', $response->getContent());
 	}
 
-	public function testHomePageResponds()
+	public function testHomePageRedirectsGuestsToLogin()
 	{
 		$response = $this->call('GET', '/');
 
-		$this->assertSame(200, $response->getStatusCode());
+		$this->assertTrue($response->isRedirect());
+		$this->assertSame(URL::to('login'), $response->headers->get('Location'));
 	}
 
 }

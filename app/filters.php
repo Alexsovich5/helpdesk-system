@@ -56,6 +56,30 @@ Route::filter('auth.basic', function()
 
 /*
 |--------------------------------------------------------------------------
+| Role Filter
+|--------------------------------------------------------------------------
+|
+| "role:agent" lets agents and admins through, "role:admin" only admins.
+| Guests are sent to the login page; signed-in users without the role get
+| a 403.
+|
+*/
+
+Route::filter('role', function($route, $request, $role)
+{
+	if (Auth::guest())
+	{
+		return Redirect::guest('login');
+	}
+
+	if ( ! Auth::user()->hasRole($role))
+	{
+		return Response::make('Forbidden', 403);
+	}
+});
+
+/*
+|--------------------------------------------------------------------------
 | Guest Filter
 |--------------------------------------------------------------------------
 |

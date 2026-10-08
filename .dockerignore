@@ -5,3 +5,4 @@ app/storage/logs/*
 app/storage/meta/*
 app/storage/sessions/*
 app/storage/views/*
+public/vendor
