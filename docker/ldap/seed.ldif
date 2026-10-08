@@ -1,0 +1,50 @@
+# Directory content for the OpenLDAP simulator. The base entry
+# dc=helpdesk,dc=local and cn=admin are created by the slapd package.
+
+dn: ou=people,dc=helpdesk,dc=local
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=helpdesk,dc=local
+objectClass: organizationalUnit
+ou: groups
+
+dn: uid=alice,ou=people,dc=helpdesk,dc=local
+objectClass: inetOrgPerson
+uid: alice
+cn: Alice Admin
+sn: Admin
+givenName: Alice
+displayName: Alice Admin
+mail: alice@helpdesk.local
+userPassword: password
+
+dn: uid=bob,ou=people,dc=helpdesk,dc=local
+objectClass: inetOrgPerson
+uid: bob
+cn: Bob Agent
+sn: Agent
+givenName: Bob
+displayName: Bob Agent
+mail: bob@helpdesk.local
+userPassword: password
+
+dn: uid=carol,ou=people,dc=helpdesk,dc=local
+objectClass: inetOrgPerson
+uid: carol
+cn: Carol Requester
+sn: Requester
+givenName: Carol
+displayName: Carol Requester
+mail: carol@helpdesk.local
+userPassword: password
+
+dn: cn=helpdesk-admins,ou=groups,dc=helpdesk,dc=local
+objectClass: groupOfNames
+cn: helpdesk-admins
+member: uid=alice,ou=people,dc=helpdesk,dc=local
+
+dn: cn=helpdesk-agents,ou=groups,dc=helpdesk,dc=local
+objectClass: groupOfNames
+cn: helpdesk-agents
+member: uid=bob,ou=people,dc=helpdesk,dc=local

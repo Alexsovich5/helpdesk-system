@@ -46,9 +46,25 @@ services:
       DB_USERNAME: helpdesk
       DB_PASSWORD: helpdesk
       APP_KEY: LocalSampleKeyForHelpdeskStack32
+      LDAP_HOST: ldap
+
+  # OpenLDAP directory standing in for Active Directory (docker/ldap).
+  ldap:
+    build: ./docker/ldap
+    image: helpdesk-system:ldap
+    platform: linux/amd64
+    volumes:
+      - ldap-data:/var/lib/ldap
+    healthcheck:
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://127.0.0.1", "-b", "dc=helpdesk,dc=local", "-s", "base"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
 
 volumes:
   db-data:
+  ldap-data:
 
 networks:
   default:

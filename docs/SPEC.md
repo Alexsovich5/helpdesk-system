@@ -297,6 +297,12 @@ echo 'deb [trusted=yes] http://archive.debian.org/debian wheezy main' > /etc/apt
 apt-get -o Acquire::Check-Valid-Until=false update
 ```
 
+The ldap image also lists `deb [trusted=yes] http://archive.debian.org/debian-security wheezy/updates main`:
+`debian:wheezy` ships `perl-base 5.14.2-21+deb7u6` from the security archive, and slapd's `perl` dependency
+only resolves against that same revision. Every slapd build left in the archive is a Debian security revision of
+upstream 2.4.31 (`2.4.31-2+deb7u2` in main, `+deb7u3` in updates, which is what gets installed); the upstream
+OpenLDAP release stays 2.4.31.
+
 (fallback if `[trusted=yes]` is ignored: `-o Acquire::AllowInsecureRepositories=true` plus `--allow-unauthenticated`
 on stretch, `--force-yes` on wheezy). Package integrity then rests on HTTP from archive.debian.org only; acceptable
 for a local period reconstruction, not for production. `make build` in T1 (app) and T4 (ldap) proves it works.

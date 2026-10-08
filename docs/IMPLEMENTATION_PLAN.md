@@ -181,9 +181,10 @@ native ext-ldap implementation and an in-memory fake for tests.
 
 **Files:**
 - create `docker/ldap/Dockerfile` (`FROM debian:wheezy`; `/etc/apt/sources.list` = `deb [trusted=yes] http://archive.debian.org/debian wheezy main`,
+  plus `deb [trusted=yes] http://archive.debian.org/debian-security wheezy/updates main` (the image's `perl-base` is a security revision, so slapd's `perl` dependency needs that archive; SPEC §7),
   `apt-get -o Acquire::Check-Valid-Until=false update`, fallback `--force-yes` (wheezy keys expired; SPEC §7 deviation); `slapd ldap-utils`; debconf preseed domain `helpdesk.local`, admin password `admin`), `docker/ldap/seed.ldif` (ou=people, ou=groups; `alice`/`bob`/`carol` with password `password`; `groupOfNames` `helpdesk-admins`, `helpdesk-agents`), `docker/ldap/entrypoint.sh` (loads seed once, runs `slapd -d 0`),
   `app/config/integration/ldap.php` (`driver => native`, host `ldap`), `app/tests/integration/LdapDirectoryTest.php` (extends `IntegrationTestCase`, so the `users` table exists in MySQL).
-- modify `docker-compose.yml` (service `ldap` with `platform: linux/amd64` since `debian:wheezy` has no arm64 image, healthcheck `ldapsearch -x -b dc=helpdesk,dc=local`), `Makefile` (`test-integration` also waits for `ldap`); `test` service env adds `LDAP_HOST=ldap`.
+- modify `docker-compose.yml` (service `ldap`, image `helpdesk-system:ldap`, with `platform: linux/amd64` since `debian:wheezy` has no arm64 image, named volume `ldap-data` on `/var/lib/ldap`, healthcheck `ldapsearch -x -b dc=helpdesk,dc=local`), `Makefile` (`build` also builds `ldap`, so a changed `docker/ldap` is rebuilt; `test-integration` also waits for `ldap`); `test` service env adds `LDAP_HOST=ldap`.
 
 **Tests to write first:** `LdapDirectoryTest`: `findUser('bob')` returns the DN, email and `helpdesk-agents`; `bind(dn,'password')` is true and `bind(dn,'wrong')` false; `findUser('nobody')` null; `Auth::attempt(['username'=>'alice','password'=>'password'])` provisions (or updates, if already present) an admin, asserted on the returned user's `role` and `source`, not on a row count.
 

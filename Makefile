@@ -1,7 +1,7 @@
 .PHONY: assets build up down reset-db install smoke shell test test-unit test-integration
 
 build:
-	docker compose build app
+	docker compose build app ldap
 
 # The image copies vendor/twbs/bootstrap/dist to public/vendor/bootstrap while
 # it builds; this copies the same files out to the checkout's public/vendor.
@@ -36,5 +36,5 @@ test-unit: build
 	docker compose run --rm --no-deps test vendor/bin/phpunit --testsuite functional
 
 test-integration: build
-	docker compose up -d --wait db
+	docker compose up -d --wait db ldap
 	docker compose run --rm test vendor/bin/phpunit --testsuite integration
