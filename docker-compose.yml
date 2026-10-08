@@ -34,6 +34,20 @@ services:
       retries: 30
       start_period: 20s
 
+  # Runs sla:check once a minute against the helpdesk database.
+  scheduler:
+    image: helpdesk-system:app
+    command: ["sh", "-c", "while true; do php artisan sla:check; sleep 60; done"]
+    environment:
+      APP_ENV: local
+      DB_HOST: db
+      DB_DATABASE: helpdesk
+      DB_USERNAME: helpdesk
+      DB_PASSWORD: helpdesk
+    depends_on:
+      db:
+        condition: service_healthy
+
   # Runs PHPUnit. Unit and functional suites use sqlite in memory;
   # the integration suite uses the helpdesk_test database on db.
   test:

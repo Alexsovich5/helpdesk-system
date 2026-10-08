@@ -11,3 +11,5 @@
 |
 */
 
+
+Artisan::resolve('SlaCheckCommand');
