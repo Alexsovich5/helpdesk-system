@@ -1,7 +1,7 @@
-.PHONY: assets build up down reset-db install smoke shell test test-unit test-integration
+.PHONY: assets build up down reset-db install smoke shell mail-clean test test-unit test-integration
 
 build:
-	docker compose build app ldap
+	docker compose build app ldap smtp-sink
 
 # The image copies vendor/twbs/bootstrap/dist to public/vendor/bootstrap while
 # it builds; this copies the same files out to the checkout's public/vendor.
@@ -29,6 +29,10 @@ smoke: up
 shell:
 	docker compose run --rm test bash
 
+# Removes the captured messages from the mail-sink volume.
+mail-clean:
+	docker compose run --rm --no-deps test sh -c 'rm -f /var/mail-sink/*.eml'
+
 test: test-unit test-integration
 
 test-unit: build
@@ -36,5 +40,5 @@ test-unit: build
 	docker compose run --rm --no-deps test vendor/bin/phpunit --testsuite functional
 
 test-integration: build
-	docker compose up -d --wait db ldap
+	docker compose up -d --wait db ldap smtp-sink
 	docker compose run --rm test vendor/bin/phpunit --testsuite integration

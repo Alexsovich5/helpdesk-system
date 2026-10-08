@@ -12,8 +12,14 @@ services:
       DB_DATABASE: helpdesk
       DB_USERNAME: helpdesk
       DB_PASSWORD: helpdesk
+      MAIL_HOST: smtp-sink
+      MAIL_PORT: "1025"
+    volumes:
+      - mail-sink:/var/mail-sink
     depends_on:
       db:
+        condition: service_healthy
+      smtp-sink:
         condition: service_healthy
 
   db:
@@ -44,8 +50,14 @@ services:
       DB_DATABASE: helpdesk
       DB_USERNAME: helpdesk
       DB_PASSWORD: helpdesk
+      MAIL_HOST: smtp-sink
+      MAIL_PORT: "1025"
+    volumes:
+      - mail-sink:/var/mail-sink
     depends_on:
       db:
+        condition: service_healthy
+      smtp-sink:
         condition: service_healthy
 
   # Runs PHPUnit. Unit and functional suites use sqlite in memory;
@@ -61,6 +73,11 @@ services:
       DB_PASSWORD: helpdesk
       APP_KEY: LocalSampleKeyForHelpdeskStack32
       LDAP_HOST: ldap
+      MAIL_HOST: smtp-sink
+      MAIL_PORT: "1025"
+      MAIL_SINK_DIR: /var/mail-sink
+    volumes:
+      - mail-sink:/var/mail-sink
 
   # OpenLDAP directory standing in for Active Directory (docker/ldap).
   ldap:
@@ -76,9 +93,24 @@ services:
       retries: 30
       start_period: 10s
 
+  # Fake SMTP server: writes every message to the mail-sink volume as a
+  # .eml file (docker/smtp-sink). Nothing is relayed.
+  smtp-sink:
+    build: ./docker/smtp-sink
+    image: helpdesk-system:smtp-sink
+    volumes:
+      - mail-sink:/var/mail-sink
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 1025), 2).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
 volumes:
   db-data:
   ldap-data:
+  mail-sink:
 
 networks:
   default:

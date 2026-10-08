@@ -1,12 +1,16 @@
 <?php
 
 /*
-| Messages are written to the log instead of being sent over SMTP; the
-| integration suite has no mail server to deliver to.
+| Messages are sent over SMTP to the smtp-sink compose service, which
+| writes each one to the shared mail-sink volume.
 */
 
 return array(
 
-	'pretend' => true,
+	'pretend' => false,
+
+	'host' => getenv('MAIL_HOST') ?: 'smtp-sink',
+
+	'port' => getenv('MAIL_PORT') ?: 1025,
 
 );
