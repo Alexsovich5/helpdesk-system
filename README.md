@@ -85,13 +85,15 @@ The tree below is `git ls-files` rendered by `docker/layout-tree.php`; `app/test
 │   │   │   └── CsvFormatException.php
 │   │   ├── Auth
 │   │   │   ├── FakeLdapGateway.php
+│   │   │   ├── LdapAmbiguousEntryException.php
 │   │   │   ├── LdapGateway.php
 │   │   │   ├── LdapServiceProvider.php
 │   │   │   ├── LdapUnavailableException.php
 │   │   │   ├── LdapUserProvider.php
 │   │   │   ├── NativeLdapGateway.php
 │   │   │   ├── RoleMapper.php
-│   │   │   └── RoleSync.php
+│   │   │   ├── RoleSync.php
+│   │   │   └── RoleSyncAbortedException.php
 │   │   ├── Http
 │   │   │   └── HostGuard.php
 │   │   ├── Kb
