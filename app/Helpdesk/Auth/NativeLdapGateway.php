@@ -130,8 +130,12 @@ class NativeLdapGateway implements LdapGateway {
 
 			$entries = ldap_get_entries($link, $search);
 
-			// No entry, or an ambiguous name that matches several.
-			if ($entries['count'] !== 1) return null;
+			if ($entries['count'] === 0) return null;
+
+			if ($entries['count'] > 1)
+			{
+				throw new LdapAmbiguousEntryException('"'.$username.'" matches '.$entries['count'].' directory entries');
+			}
 
 			$entry = $entries[0];
 			$dn = $entry['dn'];

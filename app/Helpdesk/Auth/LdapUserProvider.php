@@ -12,9 +12,10 @@ use User;
  * login creates or refreshes the user row with source=ldap, the mapped role,
  * active=1 and the login and role-verification times.
  *
- * A directory user whose entry is gone or disabled is deactivated and
- * demoted when they next try to sign in. A directory outage only refuses the
- * login; it changes nothing. Deactivated local accounts cannot sign in.
+ * A directory user whose entry is gone, ambiguous or disabled, or whose
+ * directory is unreachable, is refused; a failed attempt never changes a user
+ * row (deactivation is left to RoleSync). Deactivated local accounts cannot
+ * sign in.
  */
 class LdapUserProvider implements UserProviderInterface {
 
@@ -82,13 +83,12 @@ class LdapUserProvider implements UserProviderInterface {
 		{
 			return null;
 		}
-
-		if (is_null($entry) || ! empty($entry['disabled']))
+		catch (LdapAmbiguousEntryException $e)
 		{
-			if ($user) static::deactivate($user);
-
 			return null;
 		}
+
+		if (is_null($entry) || ! empty($entry['disabled'])) return null;
 
 		$this->entries[strtolower($username)] = $entry;
 

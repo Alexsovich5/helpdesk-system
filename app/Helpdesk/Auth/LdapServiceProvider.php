@@ -22,6 +22,16 @@ class LdapServiceProvider extends ServiceProvider {
 			return new NativeLdapGateway($config, $app['log']->getMonolog());
 		});
 
+		$this->app->bind('Helpdesk\Auth\RoleSync', function($app)
+		{
+			return new RoleSync(
+				$app->make('Helpdesk\Auth\LdapGateway'),
+				$app->make('Helpdesk\Auth\RoleMapper'),
+				$app['log'],
+				$app['config']['ldap.max_removal_share']
+			);
+		});
+
 		$this->app->bind('Helpdesk\Auth\RoleMapper', function($app)
 		{
 			$map = $app['config']['ldap.role_map'];

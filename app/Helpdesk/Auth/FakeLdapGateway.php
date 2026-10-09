@@ -15,6 +15,13 @@ class FakeLdapGateway implements LdapGateway {
 	protected $users = array();
 
 	/**
+	 * Lower-cased usernames that match more than one entry.
+	 *
+	 * @var array
+	 */
+	protected $ambiguous = array();
+
+	/**
 	 * @var string
 	 */
 	protected $userFilter;
@@ -78,6 +85,14 @@ class FakeLdapGateway implements LdapGateway {
 		$this->users[strtolower($username)]['disabled'] = (bool) $disabled;
 	}
 
+	/**
+	 * Make findUser() report that the name matches several entries.
+	 */
+	public function makeAmbiguous($username)
+	{
+		$this->ambiguous[strtolower($username)] = true;
+	}
+
 	public function removeUser($username)
 	{
 		unset($this->users[strtolower($username)]);
@@ -106,6 +121,11 @@ class FakeLdapGateway implements LdapGateway {
 		$this->filters[] = NativeLdapGateway::userFilter($this->userFilter, $username);
 
 		$key = strtolower($username);
+
+		if (isset($this->ambiguous[$key]))
+		{
+			throw new LdapAmbiguousEntryException('"'.$username.'" matches several directory entries');
+		}
 
 		if ( ! isset($this->users[$key])) return null;
 

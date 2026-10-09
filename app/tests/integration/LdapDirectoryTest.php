@@ -58,7 +58,16 @@ class LdapDirectoryTest extends IntegrationTestCase {
 	public function testUsernameMatchingTwoEntriesIsRefused()
 	{
 		// seed.ldif has uid=dana in both ou=people and ou=delegated.
-		$this->assertNull($this->gateway()->findUser('dana'));
+		try
+		{
+			$this->gateway()->findUser('dana');
+			$this->fail('expected an ambiguous-entry exception');
+		}
+		catch (Helpdesk\Auth\LdapAmbiguousEntryException $e)
+		{
+			$this->assertContains('dana', $e->getMessage());
+		}
+
 		$this->assertFalse(Auth::attempt(array('username' => 'dana', 'password' => 'password')));
 		$this->assertNull(User::where('username', 'dana')->first());
 	}

@@ -8,8 +8,9 @@ interface LdapGateway {
 	 * @param  string  $username
 	 * @return array|null ['dn'=>..,'username'=>..,'name'=>..,'email'=>..,
 	 *                     'groups'=>[group DN,..],'disabled'=>bool];
-	 *                     null when no entry, or more than one, matches
+	 *                     null when no entry matches
 	 * @throws LdapUnavailableException  the directory could not be searched
+	 * @throws LdapAmbiguousEntryException  more than one entry matches
 	 */
 	public function findUser($username);
 

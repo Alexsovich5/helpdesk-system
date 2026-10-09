@@ -1,7 +1,7 @@
 <?php
 
 use Helpdesk\Auth\LdapUnavailableException;
-use Helpdesk\Auth\RoleSync;
+use Helpdesk\Auth\RoleSyncAbortedException;
 use Illuminate\Console\Command;
 
 class UsersSyncRolesCommand extends Command {
@@ -15,6 +15,12 @@ class UsersSyncRolesCommand extends Command {
 		try
 		{
 			$counts = $this->laravel->make('Helpdesk\Auth\RoleSync')->run();
+		}
+		catch (RoleSyncAbortedException $e)
+		{
+			$this->error($e->getMessage().' (no user was changed)');
+
+			return 1;
 		}
 		catch (LdapUnavailableException $e)
 		{

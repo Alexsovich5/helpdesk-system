@@ -140,28 +140,43 @@ class LdapUserProviderTest extends TestCase {
 		$this->assertSame('2014-07-01 09:00:00', (string) $row->role_verified_at);
 	}
 
-	public function testUserRemovedFromTheDirectoryIsDeactivatedOnTheirNextLogin()
+	public function testUserRemovedFromTheDirectoryIsRefusedWithoutBeingChanged()
 	{
 		$this->attempt('bob', 'password');
 		$this->directory->removeUser('bob');
 
+		$this->assertNull($this->attempt('bob', 'wrong'));
 		$this->assertNull($this->attempt('bob', 'password'));
 
 		$row = User::where('username', 'bob')->first();
-		$this->assertFalse((bool) $row->active);
-		$this->assertSame('requester', $row->role);
+		$this->assertTrue((bool) $row->active);
+		$this->assertSame('agent', $row->role);
 	}
 
-	public function testDisabledDirectoryAccountIsRefusedAndDeactivated()
+	public function testDisabledDirectoryAccountIsRefusedWithoutBeingChanged()
 	{
 		$this->attempt('bob', 'password');
 		$this->directory->setDisabled('bob', true);
 
+		$this->assertNotInstanceOf('User', $this->attempt('bob', 'wrong'));
 		$this->assertNotInstanceOf('User', $this->attempt('bob', 'password'));
 
 		$row = User::where('username', 'bob')->first();
-		$this->assertFalse((bool) $row->active);
-		$this->assertSame('requester', $row->role);
+		$this->assertTrue((bool) $row->active);
+		$this->assertSame('agent', $row->role);
+	}
+
+	public function testAmbiguousDirectoryEntryIsRefusedWithoutBeingChanged()
+	{
+		$this->attempt('bob', 'password');
+		$this->directory->makeAmbiguous('bob');
+
+		$this->assertNull($this->attempt('bob', 'wrong'));
+		$this->assertNull($this->attempt('bob', 'password'));
+
+		$row = User::where('username', 'bob')->first();
+		$this->assertTrue((bool) $row->active);
+		$this->assertSame('agent', $row->role);
 	}
 
 	public function testDirectoryOutageRefusesTheLoginButKeepsTheAccount()

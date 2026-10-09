@@ -52,9 +52,12 @@ compliance.
    database accounts (bcrypt) for break-glass admin. Roles are mapped from full, normalised group
    DNs (case-insensitive, whitespace around RDN separators removed), and only groups below
    `group_base_dn` (default `ou=groups,<base_dn>`) count, so a same-named group in another OU
-   grants nothing. A directory user whose entry is gone, ambiguous or disabled is deactivated
-   and demoted at their next sign-in attempt; `php artisan users:sync-roles` (hourly in the
-   `scheduler` container) re-checks every directory agent and admin.
+   grants nothing. A sign-in attempt never changes a user: an entry that is gone, ambiguous or
+   disabled only refuses the sign-in. `php artisan users:sync-roles` (hourly in the
+   `scheduler` container) re-checks every directory agent and admin; a user matching several
+   entries is left unchanged with a logged warning, and a run that would deactivate more than
+   `ldap.max_removal_share` (env `LDAP_MAX_REMOVAL_SHARE`, default 0.2) of the checked users
+   stops without changing anything.
 
 ## 3. Out of scope (with reason)
 
@@ -207,7 +210,7 @@ php artisan assets:import path/to.csv      # upsert by asset_tag; prints "create
 php artisan users:sync-roles               # re-check directory agents/admins; prints "checked N, verified V, demoted D, deactivated X"
 ```
 
-`users:sync-roles` looks every user up before it writes anything; a directory outage exits non-zero and changes nothing.
+`users:sync-roles` looks every user up before it writes anything; a directory outage, or a removal share above `ldap.max_removal_share`, exits non-zero and changes nothing.
 CSV header: `asset_tag,name,type,serial,location,status,assigned_username` (UTF-8, comma).
 
 ### 5.6 Configuration (environment variables read in `app/config/*.php`)

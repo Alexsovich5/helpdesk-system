@@ -17,6 +17,9 @@ class UsersSyncRolesCommandTest extends TestCase {
 	/** @var FakeLdapGateway */
 	protected $directory;
 
+	/** @var SyncLogSpy */
+	protected $log;
+
 	public function setUp()
 	{
 		parent::setUp();
@@ -27,6 +30,17 @@ class UsersSyncRolesCommandTest extends TestCase {
 		$this->directory = new FakeLdapGateway();
 		$this->directory->addUser('alice', 'password', array(static::ADMINS), 'Alice Admin', 'alice@helpdesk.local');
 		$this->directory->addUser('bob', 'password', array(static::AGENTS), 'Bob Agent', 'bob@helpdesk.local');
+		$this->log = new SyncLogSpy;
+		$spy = $this->log;
+		App::bind('Helpdesk\Auth\RoleSync', function($app) use ($spy)
+		{
+			return new Helpdesk\Auth\RoleSync(
+				$app->make('Helpdesk\Auth\LdapGateway'),
+				$app->make('Helpdesk\Auth\RoleMapper'),
+				$spy,
+				$app['config']['ldap.max_removal_share']
+			);
+		});
 		App::instance('Helpdesk\Auth\LdapGateway', $this->directory);
 	}
 
@@ -96,8 +110,22 @@ class UsersSyncRolesCommandTest extends TestCase {
 		$this->assertSame('agent', User::where('username', 'alice')->first()->role);
 	}
 
+	/**
+	 * Adds agents that are present in the directory so a single removal
+	 * stays under the abort threshold.
+	 */
+	protected function addHealthyAgents($count)
+	{
+		for ($i = 1; $i <= $count; $i++)
+		{
+			$this->directory->addUser('agent'.$i, 'password', array(static::AGENTS));
+			$this->makeUser('agent'.$i, 'agent');
+		}
+	}
+
 	public function testUserMissingFromTheDirectoryIsDeactivated()
 	{
+		$this->addHealthyAgents(9);
 		$this->makeUser('gone', 'agent');
 
 		list($status, $text) = $this->sync();
@@ -111,12 +139,75 @@ class UsersSyncRolesCommandTest extends TestCase {
 
 	public function testDisabledDirectoryAccountIsDeactivated()
 	{
+		$this->addHealthyAgents(9);
 		$this->makeUser('bob', 'agent');
 		$this->directory->setDisabled('bob', true);
 
 		$this->sync();
 
 		$this->assertFalse((bool) User::where('username', 'bob')->first()->active);
+	}
+
+	public function testAmbiguousEntryChangesNothingAndIsLogged()
+	{
+		$this->addHealthyAgents(9);
+		$this->makeUser('bob', 'agent');
+		$this->directory->makeAmbiguous('bob');
+
+		list($status, $text) = $this->sync();
+
+		$bob = User::where('username', 'bob')->first();
+		$this->assertSame(0, $status);
+		$this->assertTrue((bool) $bob->active);
+		$this->assertSame('agent', $bob->role);
+		$this->assertSame('2014-05-01 00:00:00', (string) $bob->role_verified_at);
+		$this->assertContains('deactivated 0', $text);
+		$this->assertCount(1, $this->log->warnings);
+		$this->assertContains('bob', $this->log->warnings[0]);
+	}
+
+	public function testRunRemovingTooLargeAShareOfUsersAbortsWithoutChanges()
+	{
+		$this->addHealthyAgents(7);
+		$this->makeUser('gone1', 'agent');
+		$this->makeUser('gone2', 'agent');
+		$this->makeUser('gone3', 'agent');
+		$this->directory->setGroups('agent1', array());
+
+		list($status, $text) = $this->sync();
+
+		$this->assertNotSame(0, $status);
+		$this->assertContains('no user was changed', $text);
+		foreach (User::all() as $user)
+		{
+			$this->assertTrue((bool) $user->active);
+			$this->assertNotSame('requester', $user->role);
+			$this->assertSame('2014-05-01 00:00:00', (string) $user->role_verified_at);
+		}
+	}
+
+	public function testRunRemovingAShareAtTheLimitProceeds()
+	{
+		$this->addHealthyAgents(8);
+		$this->makeUser('gone1', 'agent');
+		$this->makeUser('gone2', 'agent');
+
+		list($status, $text) = $this->sync();
+
+		$this->assertSame(0, $status);
+		$this->assertContains('deactivated 2', $text);
+	}
+
+	public function testRemovalLimitComesFromConfiguration()
+	{
+		Config::set('ldap.max_removal_share', 0.5);
+		$this->addHealthyAgents(1);
+		$this->makeUser('gone', 'agent');
+
+		list($status) = $this->sync();
+
+		$this->assertSame(0, $status);
+		$this->assertFalse((bool) User::where('username', 'gone')->first()->active);
 	}
 
 	public function testLocalAccountsAndRequestersAreLeftAlone()
@@ -190,6 +281,21 @@ class UsersSyncRolesCommandTest extends TestCase {
 		$compose = file_get_contents(base_path().'/docker-compose.yml');
 
 		$this->assertContains('php artisan users:sync-roles', $compose);
+	}
+
+}
+
+class SyncLogSpy {
+
+	public $warnings = array();
+
+	public function warning($message, array $context = array())
+	{
+		$this->warnings[] = $message;
+	}
+
+	public function __call($method, $args)
+	{
 	}
 
 }

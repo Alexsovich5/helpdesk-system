@@ -40,6 +40,10 @@ return array(
 	// confirmed (at login or by users:sync-roles) within this many days.
 	'role_max_age_days' => (int) (getenv('LDAP_ROLE_MAX_AGE_DAYS') ?: 30),
 
+	// users:sync-roles stops without changing anything when more than this
+	// share (0 to 1) of the agents and admins it checks would be deactivated.
+	'max_removal_share' => (float) (getenv('LDAP_MAX_REMOVAL_SHARE') ?: 0.2),
+
 	'fake_users' => array(),
 
 );
