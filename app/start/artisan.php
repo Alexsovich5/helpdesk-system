@@ -15,3 +15,4 @@
 Artisan::resolve('SlaCheckCommand');
 Artisan::resolve('AssetsImportCommand');
 Artisan::resolve('UsersSyncRolesCommand');
+Artisan::resolve('UsersActivateCommand');

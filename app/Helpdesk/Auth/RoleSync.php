@@ -66,6 +66,7 @@ class RoleSync {
 			catch (LdapAmbiguousEntryException $e)
 			{
 				$ambiguous[$user->id] = true;
+				$removals++;
 
 				continue;
 			}
@@ -88,7 +89,10 @@ class RoleSync {
 		{
 			if (isset($ambiguous[$user->id]))
 			{
-				if ($this->log) $this->log->warning('Role sync skipped "'.$user->username.'": several directory entries match');
+				if ($this->log) $this->log->warning('Role sync deactivated "'.$user->username.'": several directory entries match; an administrator must activate the account');
+
+				LdapUserProvider::deactivate($user);
+				$counts['deactivated']++;
 
 				continue;
 			}

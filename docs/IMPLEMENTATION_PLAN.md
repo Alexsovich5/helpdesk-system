@@ -505,3 +505,9 @@ Generate APP_KEY per install, map roles by group DN, retire stale
 agents, pin links to APP_URL, sanitise CSV cells, redact logged
 secrets and install only gpg-verified Debian packages.
 ```
+
+## T-LDAP — Ambiguous and deactivated directory users need an administrator
+
+- `users:sync-roles` now deactivates and demotes (to requester) an agent or admin whose username matches several directory entries, logs a warning, and counts the user toward `ldap.max_removal_share` so a directory fault cannot deactivate everyone.
+- A sign-in never reactivates a deactivated directory user, whatever the directory says; only `php artisan users:activate <username>` (an administrator action) does. The role stays requester until the next directory check or sign-in.
+- Tests: `LdapUserProviderTest` (deactivated user refused, including when the entry is ambiguous), `UsersSyncRolesCommandTest` (ambiguous deactivation, removal-limit accounting, admin activation, unknown user).

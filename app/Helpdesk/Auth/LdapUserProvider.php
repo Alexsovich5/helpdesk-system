@@ -75,6 +75,9 @@ class LdapUserProvider implements UserProviderInterface {
 
 		if ($user && $user->source === 'local') return $user->active ? $user : null;
 
+		// A deactivated directory user is only brought back by an administrator.
+		if ($user && ! $user->active) return null;
+
 		try
 		{
 			$entry = $this->gateway->findUser($username);
@@ -97,7 +100,7 @@ class LdapUserProvider implements UserProviderInterface {
 		// The directory may spell the name differently from what was typed.
 		$user = User::where('username', $entry['username'])->first();
 
-		if ($user) return $user->source === 'local' ? null : $user;
+		if ($user) return ($user->source === 'local' or ! $user->active) ? null : $user;
 
 		$user = new User;
 		$user->username = $entry['username'];
@@ -148,7 +151,7 @@ class LdapUserProvider implements UserProviderInterface {
 		$user->role = $this->roles->roleFor($entry['groups']);
 		$user->source = 'ldap';
 		$user->password = null;
-		$user->active = true;
+		if ( ! $user->exists) $user->active = true;
 		$user->last_login_at = Carbon::now();
 		$user->role_verified_at = Carbon::now();
 

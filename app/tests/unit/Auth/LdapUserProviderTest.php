@@ -191,13 +191,26 @@ class LdapUserProviderTest extends TestCase {
 		$this->assertSame('agent', $row->role);
 	}
 
-	public function testDeactivatedDirectoryUserIsReactivatedByAValidLogin()
+	public function testDeactivatedDirectoryUserCannotBeReactivatedByALogin()
 	{
 		$this->attempt('bob', 'password');
-		User::where('username', 'bob')->update(array('active' => false));
+		User::where('username', 'bob')->update(array('active' => false, 'role' => 'requester'));
 
-		$this->assertInstanceOf('User', $this->attempt('bob', 'password'));
-		$this->assertTrue((bool) User::where('username', 'bob')->first()->active);
+		$this->assertNull($this->attempt('bob', 'password'));
+
+		$row = User::where('username', 'bob')->first();
+		$this->assertFalse((bool) $row->active);
+		$this->assertSame('requester', $row->role);
+	}
+
+	public function testDeactivatedDirectoryUserIsRefusedEvenWhenTheEntryIsNowAmbiguous()
+	{
+		$this->attempt('bob', 'password');
+		User::where('username', 'bob')->update(array('active' => false, 'role' => 'requester'));
+		$this->directory->makeAmbiguous('bob');
+
+		$this->assertNull($this->attempt('bob', 'password'));
+		$this->assertFalse((bool) User::where('username', 'bob')->first()->active);
 	}
 
 	public function testDeactivatedLocalUserCannotLogIn()

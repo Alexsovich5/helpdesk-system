@@ -52,7 +52,7 @@ compliance.
    database accounts (bcrypt) for break-glass admin. Roles are mapped from full, normalised group
    DNs (case-insensitive, whitespace around RDN separators removed), and only groups below
    `group_base_dn` (default `ou=groups,<base_dn>`) count, so a same-named group in another OU
-   grants nothing. A sign-in attempt never changes a user: an entry that is gone, ambiguous or
+   grants nothing. A sign-in attempt never changes a user and never reactivates one: an entry that is gone, ambiguous or
    disabled only refuses the sign-in. `php artisan users:sync-roles` (hourly in the
    `scheduler` container) re-checks every directory agent and admin; a user matching several
    entries is left unchanged with a logged warning, and a run that would deactivate more than

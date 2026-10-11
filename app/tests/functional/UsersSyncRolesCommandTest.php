@@ -148,7 +148,7 @@ class UsersSyncRolesCommandTest extends TestCase {
 		$this->assertFalse((bool) User::where('username', 'bob')->first()->active);
 	}
 
-	public function testAmbiguousEntryChangesNothingAndIsLogged()
+	public function testAmbiguousEntryDeactivatesAndDemotesTheUserAndIsLogged()
 	{
 		$this->addHealthyAgents(9);
 		$this->makeUser('bob', 'agent');
@@ -158,12 +158,51 @@ class UsersSyncRolesCommandTest extends TestCase {
 
 		$bob = User::where('username', 'bob')->first();
 		$this->assertSame(0, $status);
-		$this->assertTrue((bool) $bob->active);
-		$this->assertSame('agent', $bob->role);
-		$this->assertSame('2014-05-01 00:00:00', (string) $bob->role_verified_at);
-		$this->assertContains('deactivated 0', $text);
+		$this->assertFalse((bool) $bob->active);
+		$this->assertSame('requester', $bob->role);
+		$this->assertContains('deactivated 1', $text);
 		$this->assertCount(1, $this->log->warnings);
 		$this->assertContains('bob', $this->log->warnings[0]);
+	}
+
+	public function testAmbiguousEntriesCountTowardTheRemovalLimit()
+	{
+		$this->addHealthyAgents(2);
+		$this->makeUser('bob', 'agent');
+		$this->directory->makeAmbiguous('bob');
+
+		list($status, $text) = $this->sync();
+
+		$this->assertSame(1, $status);
+		$this->assertTrue((bool) User::where('username', 'bob')->first()->active);
+		$this->assertSame('agent', User::where('username', 'bob')->first()->role);
+	}
+
+	public function testAnAmbiguousUserStaysInactiveUntilAnAdminActivatesThem()
+	{
+		$this->addHealthyAgents(9);
+		$this->makeUser('bob', 'agent');
+		$this->directory->makeAmbiguous('bob');
+		$this->sync();
+
+		$this->sync();
+		$this->assertFalse((bool) User::where('username', 'bob')->first()->active);
+
+		$output = new BufferedOutput;
+		$status = Artisan::call('users:activate', array('username' => 'bob'), $output);
+
+		$bob = User::where('username', 'bob')->first();
+		$this->assertSame(0, $status);
+		$this->assertTrue((bool) $bob->active);
+		$this->assertSame('requester', $bob->role);
+		$this->assertContains('bob', $output->fetch());
+	}
+
+	public function testActivatingAnUnknownUserFails()
+	{
+		$output = new BufferedOutput;
+
+		$this->assertSame(1, Artisan::call('users:activate', array('username' => 'nobody'), $output));
 	}
 
 	public function testRunRemovingTooLargeAShareOfUsersAbortsWithoutChanges()
